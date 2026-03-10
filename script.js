@@ -3,7 +3,7 @@ const SB_URL = "https://vcyrcjayfjueshnffzoc.supabase.co";
 const SB_KEY = "sb_publishable_E7U5H2QdRT20-Il8LZrlhg_2FnEx2Qk";
 const supabaseClient = window.supabase.createClient(SB_URL, SB_KEY);
 // ✅ DOMÍNIO REAL DO NETLIFY - SEM ESPAÇOS!
-const BASE_URL = "https://etevalda-joias.vercel.app";
+const BASE_URL = "https://portal-etevalda-pro.vercel.app";
 // ✅ ENTREGADORES COM NÚMEROS REAIS (55+DDD+NUMERO)
 const DELIVERERS = {
   '5565992512338': { name: 'Santiago', phone: '5565992512338' },
