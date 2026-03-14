@@ -10,300 +10,302 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
 <!-- ========== PÁGINA DE ROTA DO ENTREGADOR (TELA CHEIA) ========== -->
 <div id="deliveryPage">
-<div id="deliveryContent"></div>
+  <div id="deliveryContent"></div>
 </div>
 
 <!-- ========== PAINEL DE GESTÃO (ADMIN) ========== -->
 <div id="adminPanel">
-<div class="container">
-<header>
-<div class="logo-admin"><i class="fas fa-gem"></i> Etevalda Joias</div>
-<div class="header-actions">
-<button class="btn btn-outline btn-sm" onclick="refreshData(event)"><i class="fas fa-sync-alt"></i> Atualizar</button>
-<div id="connectionStatus" class="badge badge-delivered"><i class="fas fa-circle" style="font-size:0.5rem;"></i> Online</div>
-</div>
-</header>
+  <div class="container">
+    <header>
+      <div class="logo-admin"><i class="fas fa-gem"></i> Etevalda Joias</div>
+      <div class="header-actions">
+        <button class="btn btn-outline btn-sm" onclick="refreshData(event)"><i class="fas fa-sync-alt"></i> Atualizar</button>
+        <div id="connectionStatus" class="badge badge-delivered"><i class="fas fa-circle" style="font-size:0.5rem;"></i> Online</div>
+      </div>
+    </header>
 
-<div class="tabs">
-<button class="tab-btn active" data-tab="dashboard"><i class="fas fa-home"></i> Dashboard</button>
-<button class="tab-btn" data-tab="report"><i class="fas fa-chart-line"></i> Relatório</button>
-</div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="dashboard"><i class="fas fa-home"></i> Dashboard</button>
+      <button class="tab-btn" data-tab="report"><i class="fas fa-chart-line"></i> Relatório</button>
+    </div>
 
-<div id="tab-dashboard" class="tab-content">
-<div id="pendingAlert" class="alert-banner blink-alert hidden">
-<div><span class="alert-text">🔴 <span id="alertCount">0</span> entrega(s) para fazer AGORA</span></div>
-<button class="btn btn-danger btn-sm" onclick="openPendingAccordionFromAlert()"><i class="fas fa-bell"></i> Entregar Agora</button>
-</div>
+    <div id="tab-dashboard" class="tab-content">
+      <div id="pendingAlert" class="alert-banner blink-alert hidden">
+        <div><span class="alert-text">🔴 <span id="alertCount">0</span> entrega(s) para fazer AGORA</span></div>
+        <button class="btn btn-danger btn-sm" onclick="openPendingAccordionFromAlert()"><i class="fas fa-bell"></i> Entregar Agora</button>
+      </div>
 
-<div class="card">
-<div class="card-header"><h2 class="card-title"><i class="fas fa-chart-pie"></i> Visão Geral</h2></div>
-<div class="finance-summary">
-<div class="finance-card"><div class="label">Pedidos Hoje</div><div class="value" id="statToday">0</div><div class="sub">últimas 24h</div></div>
-<div class="finance-card"><div class="label">Pedidos Realizados</div><div class="value" id="statDelivered">0</div><div class="sub">concluídos</div></div>
-</div>
-</div>
+      <div class="card">
+        <div class="card-header"><h2 class="card-title"><i class="fas fa-chart-pie"></i> Visão Geral</h2></div>
+        <div class="finance-summary">
+          <div class="finance-card"><div class="label">Pedidos Hoje</div><div class="value" id="statToday">0</div><div class="sub">últimas 24h</div></div>
+          <div class="finance-card"><div class="label">Pedidos Realizados</div><div class="value" id="statDelivered">0</div><div class="sub">concluídos</div></div>
+        </div>
+      </div>
 
-<div class="card">
-<div class="card-header"><h2 class="card-title"><i class="fas fa-wand-magic-sparkles"></i> Extrair e Gerar Link</h2></div>
-<div class="deliverer-select">
-<label for="selectedDeliverer">🚚 Entregador Responsável</label>
-<select id="selectedDeliverer">
-<option value="">Selecione um entregador...</option>
-<option value="5565992512338">Santiago - (65) 99251-2338</option>
-<option value="5565992038306">Raielle - (65) 99203-8306</option>
-<option value="5566999126191">Valdir - (66) 99912-6191</option>
-<option value="5566996952171">Ginaldo - (66) 99695-2171</option>
-<option value="5565992022295">Valdicleia - (65) 99202-2295</option>
-</select>
-</div>
-<div class="form-group" style="margin-bottom:1rem;">
-<label>Cole a conversa com o cliente</label>
-<textarea id="extractConversation" placeholder="Cole aqui toda a conversa (Ctrl+V)..." style="min-height:120px;"></textarea>
-</div>
-<div class="form-group" style="margin-bottom:1rem;">
-<label>📍 Link de Localização (Google Maps) - Opcional</label>
-<input type="url" id="extLocation" placeholder="https://maps.app.goo.gl/...">
-<small style="color:var(--gray-600);font-size:0.8rem;">Será preenchido automaticamente se encontrar um link no texto colado</small>
-</div>
-<button class="btn btn-primary" onclick="handleExtract()"><i class="fas fa-magic"></i> Extrair Dados com IA</button>
+      <div class="card">
+        <div class="card-header"><h2 class="card-title"><i class="fas fa-wand-magic-sparkles"></i> Extrair e Gerar Link</h2></div>
+        <div class="deliverer-select">
+          <label for="selectedDeliverer">🚚 Entregador Responsável</label>
+          <select id="selectedDeliverer">
+            <option value="">Selecione um entregador...</option>
+            <option value="5565992512338">Santiago - (65) 99251-2338</option>
+            <option value="5565992038306">Raielle - (65) 99203-8306</option>
+            <option value="5566999126191">Valdir - (66) 99912-6191</option>
+            <option value="5566996952171">Ginaldo - (66) 99695-2171</option>
+            <option value="5565992022295">Valdicleia - (65) 99202-2295</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+          <label>Cole a conversa com o cliente</label>
+          <textarea id="extractConversation" placeholder="Cole aqui toda a conversa (Ctrl+V)..." style="min-height:120px;"></textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:1rem;">
+          <label>📍 Link de Localização (Google Maps) - Opcional</label>
+          <input type="url" id="extLocation" placeholder="https://maps.app.goo.gl/...">
+          <small style="color:var(--gray-600);font-size:0.8rem;">Será preenchido automaticamente se encontrar um link no texto colado</small>
+        </div>
+        <button class="btn btn-primary" onclick="handleExtract()"><i class="fas fa-magic"></i> Extrair Dados com IA</button>
 
-<div id="extractedFields" class="hidden" style="margin-top:1.5rem;padding:1rem;background:var(--green-50);border-radius:var(--radius);border:1px solid var(--green-500);">
-<h3 style="margin-bottom:1rem;color:var(--green-700);"><i class="fas fa-check-circle"></i> Dados Extraídos (EDITÁVEIS)</h3>
-<div class="form-grid">
-<div class="form-group"><label>Nome do Cliente *</label><input type="text" id="extClientName"></div>
-<div class="form-group"><label>Telefone (WhatsApp) *</label><input type="tel" id="extClientPhone"></div>
-<div class="form-group"><label>Forma de Pagamento</label><input type="text" id="extPayment"></div>
-<div class="form-group"><label>Valor Total</label><input type="text" id="extValue" placeholder="Ex: R$ 250,00"></div>
-</div>
-<div class="form-group" style="margin-top:0.5rem;"><label>Produto(s) *</label><textarea id="extProducts" style="min-height:120px;"></textarea></div>
-<div class="form-group" style="margin-top:0.5rem;"><label>📝 Observações da Entrega (Atendente)</label><textarea id="extObservations" style="min-height:80px;" placeholder="Ex: Entregar no trabalho, Casa de esquina, Chamar 10min antes..."></textarea></div>
-<button class="btn btn-success btn-block" style="margin-top:1rem;" id="sendToDelivererBtn" onclick="handleGenerateLink()">
-<i class="fas fa-rocket"></i> 🚀 ENVIAR PARA ENTREGADOR
-</button>
-</div>
+        <div id="extractedFields" class="hidden" style="margin-top:1.5rem;padding:1rem;background:var(--green-50);border-radius:var(--radius);border:1px solid var(--green-500);">
+          <h3 style="margin-bottom:1rem;color:var(--green-700);"><i class="fas fa-check-circle"></i> Dados Extraídos (EDITÁVEIS)</h3>
+          <div class="form-grid">
+            <div class="form-group"><label>Nome do Cliente *</label><input type="text" id="extClientName"></div>
+            <div class="form-group"><label>Telefone (WhatsApp) *</label><input type="tel" id="extClientPhone"></div>
+            <div class="form-group"><label>Forma de Pagamento</label><input type="text" id="extPayment"></div>
+            <div class="form-group"><label>Valor Total</label><input type="text" id="extValue" placeholder="Ex: R$ 250,00"></div>
+          </div>
+          <div class="form-group" style="margin-top:0.5rem;"><label>Produto(s) *</label><textarea id="extProducts" style="min-height:120px;"></textarea></div>
+          <div class="form-group" style="margin-top:0.5rem;"><label>📝 Observações da Entrega (Atendente)</label><textarea id="extObservations" style="min-height:80px;" placeholder="Ex: Entregar no trabalho, Casa de esquina, Chamar 10min antes..."></textarea></div>
+          <button class="btn btn-success btn-block" style="margin-top:1rem;" id="sendToDelivererBtn" onclick="handleGenerateLink()">
+            <i class="fas fa-rocket"></i> 🚀 ENVIAR PARA ENTREGADOR
+          </button>
+        </div>
 
-<div id="generatedLinkSection" class="hidden" style="margin-top:1rem;padding:1rem;background:var(--blue-50);border-radius:var(--radius);border:1px solid var(--blue-200);">
-<h4 style="margin-bottom:0.5rem;color:var(--blue-900);">📋 Texto para enviar ao entregador:</h4>
-<div style="background:white;padding:0.75rem;border-radius:8px;margin-bottom:0.75rem;font-size:0.9rem;white-space:pre-wrap;" id="linkOutput"></div>
-<button class="btn btn-primary btn-sm btn-block" onclick="copyGeneratedLink()"><i class="fas fa-copy"></i> Copiar Texto</button>
-<p style="font-size:0.8rem;color:var(--gray-600);margin-top:0.5rem;text-align:center;">Copie e envie este texto para o WhatsApp do entregador.</p>
-</div>
-</div>
+        <div id="generatedLinkSection" class="hidden" style="margin-top:1rem;padding:1rem;background:var(--blue-50);border-radius:var(--radius);border:1px solid var(--blue-200);">
+          <h4 style="margin-bottom:0.5rem;color:var(--blue-900);">📋 Texto para enviar ao entregador:</h4>
+          <div style="background:white;padding:0.75rem;border-radius:8px;margin-bottom:0.75rem;font-size:0.9rem;white-space:pre-wrap;" id="linkOutput"></div>
+          <button class="btn btn-primary btn-sm btn-block" onclick="copyGeneratedLink()"><i class="fas fa-copy"></i> Copiar Texto</button>
+          <p style="font-size:0.8rem;color:var(--gray-600);margin-top:0.5rem;text-align:center;">Copie e envie este texto para o WhatsApp do entregador.</p>
+        </div>
+      </div>
 
-<div class="card">
-<div class="card-header" style="cursor:pointer;" onclick="togglePendingAccordion()">
-<h2 class="card-title"><i class="fas fa-calendar-check"></i> Pendente de Compra</h2>
-<button type="button" class="btn btn-secondary btn-sm"><i id="pendingAccordionIcon" class="fas fa-chevron-down"></i></button>
-</div>
-<div id="pendingAccordionContent" class="hidden">
-<div class="form-group" style="margin-bottom:1rem;"><label>Cole a conversa com o cliente (Ctrl+V)</label><textarea id="pendingConversation" placeholder="Cole aqui toda a conversa..." style="min-height:100px;"></textarea></div>
-<button class="btn btn-primary btn-sm" onclick="extractPendingData()"><i class="fas fa-magic"></i> Extrair Dados com IA</button>
-<div id="pendingExtractedFields" class="hidden" style="margin-top:1rem;padding-top:1rem;border-top:1px dashed var(--gray-300);">
-<div class="form-grid">
-<div class="form-group"><label>Nome do Cliente *</label><input type="text" id="pendingClientName"></div>
-<div class="form-group"><label>Telefone (WhatsApp) *</label><input type="tel" id="pendingClientPhone"></div>
-<div class="form-group"><label>Data Prevista *</label><input type="date" id="pendingPurchaseDate"></div>
-<div class="form-group"><label>Horário Previsto</label><input type="text" id="pendingPurchaseTime" placeholder="ENTREGAR AGORA" value="ENTREGAR AGORA"></div>
-</div>
-<div class="form-group" style="margin-top:0.5rem;"><label>Resumo da Conversa (em português)</label><textarea id="pendingSummary" placeholder="Resumo em português..." style="min-height:80px;"></textarea></div>
-<button class="btn btn-success btn-sm btn-block" style="margin-top:1rem;" onclick="savePendingPurchase()"><i class="fas fa-save"></i> Salvar Pendente</button>
-</div>
-<div id="pendingList" class="order-list" style="margin-top:1rem;"></div>
-</div>
-</div>
+      <div class="card">
+        <div class="card-header" style="cursor:pointer;" onclick="togglePendingAccordion()">
+          <h2 class="card-title"><i class="fas fa-calendar-check"></i> Pendente de Compra</h2>
+          <button type="button" class="btn btn-secondary btn-sm"><i id="pendingAccordionIcon" class="fas fa-chevron-down"></i></button>
+        </div>
+        <div id="pendingAccordionContent" class="hidden">
+          <div class="form-group" style="margin-bottom:1rem;"><label>Cole a conversa com o cliente (Ctrl+V)</label><textarea id="pendingConversation" placeholder="Cole aqui toda a conversa..." style="min-height:100px;"></textarea></div>
+          <button class="btn btn-primary btn-sm" onclick="extractPendingData()"><i class="fas fa-magic"></i> Extrair Dados com IA</button>
+          <div id="pendingExtractedFields" class="hidden" style="margin-top:1rem;padding-top:1rem;border-top:1px dashed var(--gray-300);">
+            <div class="form-grid">
+              <div class="form-group"><label>Nome do Cliente *</label><input type="text" id="pendingClientName"></div>
+              <div class="form-group"><label>Telefone (WhatsApp) *</label><input type="tel" id="pendingClientPhone"></div>
+              <div class="form-group"><label>Data Prevista *</label><input type="date" id="pendingPurchaseDate"></div>
+              <div class="form-group"><label>Horário Previsto</label><input type="text" id="pendingPurchaseTime" placeholder="ENTREGAR AGORA" value="ENTREGAR AGORA"></div>
+            </div>
+            <div class="form-group" style="margin-top:0.5rem;"><label>Resumo da Conversa (em português)</label><textarea id="pendingSummary" placeholder="Resumo em português..." style="min-height:80px;"></textarea></div>
+            <button class="btn btn-success btn-sm btn-block" style="margin-top:1rem;" onclick="savePendingPurchase()"><i class="fas fa-save"></i> Salvar Pendente</button>
+          </div>
+          <div id="pendingList" class="order-list" style="margin-top:1rem;"></div>
+        </div>
+      </div>
 
-<!-- 📦 PEDIDOS ATIVOS (pending + en_route) -->
-<div class="card">
-<div class="card-header"><h2 class="card-title"><i class="fas fa-box-open"></i> 📦 Pedidos Ativos</h2><span class="badge badge-pending" id="activeCount">0 pedidos</span></div>
-<div class="search-box"><input type="text" id="activeSearch" placeholder="🔍 Buscar por nome ou telefone..." onkeyup="searchActiveOrders()"></div>
-<div id="activeList" class="order-list"></div>
-</div>
+      <!-- 📦 PEDIDOS ATIVOS (pending + en_route) -->
+      <div class="card">
+        <div class="card-header"><h2 class="card-title"><i class="fas fa-box-open"></i> 📦 Pedidos Ativos</h2><span class="badge badge-pending" id="activeCount">0 pedidos</span></div>
+        <div class="search-box"><input type="text" id="activeSearch" placeholder="🔍 Buscar por nome ou telefone..." onkeyup="searchActiveOrders()"></div>
+        <div id="activeList" class="order-list"></div>
+      </div>
 
-<!-- ✅ HISTÓRICO DE ENTREGAS (delivered + cancelled) -->
-<div class="card">
-<div class="card-header"><h2 class="card-title"><i class="fas fa-history"></i> ✅ Histórico de Entregas</h2><span class="badge badge-delivered" id="historyCount">0 pedidos</span></div>
-<div class="search-box"><input type="text" id="historySearch" placeholder="🔍 Buscar por nome ou telefone..." onkeyup="searchHistoryOrders()"></div>
-<div id="historyList" class="order-list"></div>
-</div>
-</div>
+      <!-- ✅ HISTÓRICO DE ENTREGAS (delivered + cancelled) -->
+      <div class="card">
+        <div class="card-header"><h2 class="card-title"><i class="fas fa-history"></i> ✅ Histórico de Entregas</h2><span class="badge badge-delivered" id="historyCount">0 pedidos</span></div>
+        <div class="search-box"><input type="text" id="historySearch" placeholder="🔍 Buscar por nome ou telefone..." onkeyup="searchHistoryOrders()"></div>
+        <div id="historyList" class="order-list"></div>
+      </div>
+    </div>
 
-<!-- ========== RELATÓRIO FINANCEIRO INTELIGENTE ========== -->
-<div id="tab-report" class="tab-content hidden">
-<div class="card">
-<div class="card-header">
-<h2 class="card-title"><i class="fas fa-chart-line"></i> Relatório Financeiro Inteligente</h2>
-</div>
+    <!-- ========== RELATÓRIO FINANCEIRO INTELIGENTE ========== -->
+    <div id="tab-report" class="tab-content hidden">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title"><i class="fas fa-chart-line"></i> Relatório Financeiro Inteligente</h2>
+        </div>
 
-<!-- FILTROS TEMPORAIS -->
-<div class="report-filters">
-<div class="filter-group">
-<label><i class="fas fa-calendar-alt"></i> Período Rápido:</label>
-<div class="filter-chips">
-<button class="filter-chip active" data-days="current">Mês Atual</button>
-<button class="filter-chip" data-days="7">7 dias</button>
-<button class="filter-chip" data-days="15">15 dias</button>
-<button class="filter-chip" data-days="30">30 dias</button>
-</div>
-</div>
-<div class="filter-group">
-<label><i class="fas fa-calendar"></i> Mês Específico:</label>
-<select id="monthSelector" class="month-select">
-<option value="current">Mês Atual</option>
-<option value="-1">Mês Anterior</option>
-<option value="-2">2 Meses Atrás</option>
-<option value="-3">3 Meses Atrás</option>
-<option value="-4">4 Meses Atrás</option>
-<option value="-5">5 Meses Atrás</option>
-<option value="custom">Personalizado...</option>
-</select>
-</div>
-</div>
+        <!-- FILTROS TEMPORAIS -->
+        <div class="report-filters">
+          <div class="filter-group">
+            <label><i class="fas fa-calendar-alt"></i> Período Rápido:</label>
+            <div class="filter-chips">
+              <button class="filter-chip active" data-days="current">Mês Atual</button>
+              <button class="filter-chip" data-days="7">7 dias</button>
+              <button class="filter-chip" data-days="15">15 dias</button>
+              <button class="filter-chip" data-days="30">30 dias</button>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label><i class="fas fa-calendar"></i> Mês Específico:</label>
+            <select id="monthSelector" class="month-select">
+              <option value="current">Mês Atual</option>
+              <option value="-1">Mês Anterior</option>
+              <option value="-2">2 Meses Atrás</option>
+              <option value="-3">3 Meses Atrás</option>
+              <option value="-4">4 Meses Atrás</option>
+              <option value="-5">5 Meses Atrás</option>
+              <option value="custom">Personalizado...</option>
+            </select>
+          </div>
+        </div>
 
-<!-- CARDS DE RESUMO -->
-<div class="finance-summary-cards">
-<div class="summary-card card-invested">
-<div class="card-icon"><i class="fas fa-money-bill-wave"></i></div>
-<div class="card-content">
-<div class="card-label">Total Investido</div>
-<div class="card-value" id="summaryInvested">R$ 0,00</div>
-<div class="card-subtitle">Anúncios/Facebook</div>
-</div>
-</div>
-<div class="summary-card card-revenue">
-<div class="card-icon"><i class="fas fa-chart-bar"></i></div>
-<div class="card-content">
-<div class="card-label">Faturamento Bruto</div>
-<div class="card-value" id="summaryRevenue">R$ 0,00</div>
-<div class="card-subtitle">Total que entrou</div>
-</div>
-</div>
-<div class="summary-card card-profit">
-<div class="card-icon"><i class="fas fa-wallet"></i></div>
-<div class="card-content">
-<div class="card-label">Lucro Líquido Livre</div>
-<div class="card-value" id="summaryProfit">R$ 0,00</div>
-<div class="card-subtitle">O que sobrou no bolso</div>
-</div>
-</div>
-</div>
+        <!-- CARDS DE RESUMO -->
+        <div class="finance-summary-cards">
+          <div class="summary-card card-invested">
+            <div class="card-icon"><i class="fas fa-money-bill-wave"></i></div>
+            <div class="card-content">
+              <div class="card-label">Total Investido</div>
+              <div class="card-value" id="summaryInvested">R$ 0,00</div>
+              <div class="card-subtitle">Anúncios/Facebook</div>
+            </div>
+          </div>
+          <div class="summary-card card-revenue">
+            <div class="card-icon"><i class="fas fa-chart-bar"></i></div>
+            <div class="card-content">
+              <div class="card-label">Faturamento Bruto</div>
+              <div class="card-value" id="summaryRevenue">R$ 0,00</div>
+              <div class="card-subtitle">Total que entrou</div>
+            </div>
+          </div>
+          <div class="summary-card card-profit">
+            <div class="card-icon"><i class="fas fa-wallet"></i></div>
+            <div class="card-content">
+              <div class="card-label">Lucro Líquido Livre</div>
+              <div class="card-value" id="summaryProfit">R$ 0,00</div>
+              <div class="card-subtitle">O que sobrou no bolso</div>
+            </div>
+          </div>
+        </div>
 
-<!-- TABELA DE HISTÓRICO COM COLUNA DE AÇÕES -->
-<div class="table-container" style="margin-top:1.5rem;">
-<div class="table-header">
-<h4><i class="fas fa-list"></i> Histórico de Transações</h4>
-<span class="table-period" id="currentPeriod">Mês Atual</span>
-</div>
-<table>
-<thead>
-<tr>
-<th>Data</th>
-<th>Investido</th>
-<th>Retorno</th>
-<th>Lucro Livre</th>
-<th>Margem</th>
-<th>Ações</th>
-</tr>
-</thead>
-<tbody id="financeTableBody"></tbody>
-</table>
-</div>
+        <!-- TABELA DE HISTÓRICO COM COLUNA DE AÇÕES -->
+        <div class="table-container" style="margin-top:1.5rem;">
+          <div class="table-header">
+            <h4><i class="fas fa-list"></i> Histórico de Transações</h4>
+            <span class="table-period" id="currentPeriod">Mês Atual</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Investido</th>
+                <th>Retorno</th>
+                <th>Lucro Livre</th>
+                <th>Margem</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="financeTableBody"></tbody>
+          </table>
+        </div>
 
-<!-- FORMULÁRIO DE ADIÇÃO -->
-<div style="background:var(--gray-50);padding:1rem;border-radius:var(--radius);margin-top:1.5rem;">
-<h4 style="margin-bottom:0.5rem;"><i class="fas fa-plus-circle"></i> Adicionar Registro Financeiro Manual</h4>
-<div class="form-grid">
-<div class="form-group">
-<label>Data *</label>
-<input type="date" id="financeDate">
-</div>
-<div class="form-group">
-<label>Valor Investido (R$) *</label>
-<input type="number" id="financeInvested" placeholder="0,00" step="0.01" oninput="calculateAutoProfit('finance')">
-</div>
-<div class="form-group">
-<label>Valor de Retorno (R$) *</label>
-<input type="number" id="financeReturned" placeholder="0,00" step="0.01" oninput="calculateAutoProfit('finance')">
-</div>
-<div class="form-group">
-<label>Lucro Livre (R$)</label>
-<input type="text" id="financeProfit" placeholder="0,00" readonly style="background:var(--gray-100);font-weight:600;color:var(--green-600);">
-</div>
-</div>
-<button class="btn btn-primary btn-block" style="margin-top:1rem;" onclick="addFinanceEntry()">
-<i class="fas fa-save"></i> Adicionar Registro
-</button>
-</div>
-</div>
-</div>
+        <!-- FORMULÁRIO DE ADIÇÃO -->
+        <div style="background:var(--gray-50);padding:1rem;border-radius:var(--radius);margin-top:1.5rem;">
+          <h4 style="margin-bottom:0.5rem;"><i class="fas fa-plus-circle"></i> Adicionar Registro Financeiro Manual</h4>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Data *</label>
+              <input type="date" id="financeDate">
+            </div>
+            <div class="form-group">
+              <label>Valor Investido (R$) *</label>
+              <input type="number" id="financeInvested" placeholder="0,00" step="0.01" oninput="calculateAutoProfit('finance')">
+            </div>
+            <div class="form-group">
+              <label>Valor de Retorno (R$) *</label>
+              <input type="number" id="financeReturned" placeholder="0,00" step="0.01" oninput="calculateAutoProfit('finance')">
+            </div>
+            <div class="form-group">
+              <label>Lucro Livre (R$)</label>
+              <input type="text" id="financeProfit" placeholder="0,00" readonly style="background:var(--gray-100);font-weight:600;color:var(--green-600);">
+            </div>
+          </div>
+          <button class="btn btn-primary btn-block" style="margin-top:1rem;" onclick="addFinanceEntry()">
+            <i class="fas fa-save"></i> Adicionar Registro
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ========== MODAIS (FORA DO ADMINPANEL) ========== -->
 
 <!-- Modal de Edição de Pedido -->
 <div id="editOrderModal" class="modal-overlay hidden">
-<div class="modal">
-<div class="modal-header"><h3>✏️ Editar Pedido</h3><button class="modal-close" onclick="closeEditModal()">&times;</button></div>
-<input type="hidden" id="editOrderId">
-<div class="modal-form-grid">
-<div class="form-group"><label>Nome do Cliente *</label><input type="text" id="editClientName"></div>
-<div class="form-group"><label>Telefone (WhatsApp) *</label><input type="tel" id="editClientPhone"></div>
-</div>
-<div class="form-group"><label>Produto(s) *</label><textarea id="editProducts" style="min-height:60px;"></textarea></div>
-<div class="modal-form-grid">
-<div class="form-group"><label>Forma de Pagamento</label><input type="text" id="editPayment"></div>
-<div class="form-group"><label>Valor Total</label><input type="text" id="editValue" placeholder="R$ 000,00"></div>
-</div>
-<div class="form-group"><label>Status</label><select id="editStatus"><option value="pending">⏳ Pendente</option><option value="en_route">🚚 Em Rota</option><option value="delivered">✅ Entregue</option><option value="cancelled">❌ Cancelado</option></select></div>
-<div class="form-group"><label>Observações</label><textarea id="editObservations" style="min-height:80px;"></textarea></div>
-<div class="modal-actions">
-<button class="btn btn-success btn-block" onclick="saveEditOrder()">💾 Salvar Alterações</button>
-<button class="btn btn-secondary btn-block" onclick="closeEditModal()">Cancelar</button>
-</div>
-</div>
+  <div class="modal">
+    <div class="modal-header"><h3>✏️ Editar Pedido</h3><button class="modal-close" onclick="closeEditModal()">&times;</button></div>
+    <input type="hidden" id="editOrderId">
+    <div class="modal-form-grid">
+      <div class="form-group"><label>Nome do Cliente *</label><input type="text" id="editClientName"></div>
+      <div class="form-group"><label>Telefone (WhatsApp) *</label><input type="tel" id="editClientPhone"></div>
+    </div>
+    <div class="form-group"><label>Produto(s) *</label><textarea id="editProducts" style="min-height:60px;"></textarea></div>
+    <div class="modal-form-grid">
+      <div class="form-group"><label>Forma de Pagamento</label><input type="text" id="editPayment"></div>
+      <div class="form-group"><label>Valor Total</label><input type="text" id="editValue" placeholder="R$ 000,00"></div>
+    </div>
+    <div class="form-group"><label>Status</label><select id="editStatus"><option value="pending">⏳ Pendente</option><option value="en_route">🚚 Em Rota</option><option value="delivered">✅ Entregue</option><option value="cancelled">❌ Cancelado</option></select></div>
+    <div class="form-group"><label>Observações</label><textarea id="editObservations" style="min-height:80px;"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-success btn-block" onclick="saveEditOrder()">💾 Salvar Alterações</button>
+      <button class="btn btn-secondary btn-block" onclick="closeEditModal()">Cancelar</button>
+    </div>
+  </div>
 </div>
 
 <!-- ✅ MODAL DE EDIÇÃO FINANCEIRA COM CÁLCULO AUTOMÁTICO -->
 <div id="editFinanceModal" class="modal-overlay hidden">
-<div class="modal">
-<div class="modal-header"><h3>✏️ Editar Registro Financeiro</h3><button class="modal-close" onclick="closeEditFinanceModal()">&times;</button></div>
-<input type="hidden" id="editFinanceId">
-<div class="form-grid">
-<div class="form-group">
-<label>Data *</label>
-<input type="date" id="editFinanceDate">
-</div>
-<div class="form-group">
-<label>Valor Investido (R$) *</label>
-<input type="number" id="editFinanceInvested" step="0.01" oninput="calculateAutoProfit('edit')">
-</div>
-</div>
-<div class="form-group">
-<label>Valor de Retorno (R$) *</label>
-<input type="number" id="editFinanceReturned" step="0.01" oninput="calculateAutoProfit('edit')">
-</div>
-<div class="form-group">
-<label>Lucro Livre (R$)</label>
-<input type="text" id="editFinanceProfit" readonly style="background:var(--gray-100);font-weight:600;color:var(--green-600);">
-</div>
-<div class="modal-actions">
-<button class="btn btn-success btn-block" onclick="saveEditFinanceEntry()">💾 Salvar Alterações</button>
-<button class="btn btn-secondary btn-block" onclick="closeEditFinanceModal()">Cancelar</button>
-</div>
-</div>
+  <div class="modal">
+    <div class="modal-header"><h3>✏️ Editar Registro Financeiro</h3><button class="modal-close" onclick="closeEditFinanceModal()">&times;</button></div>
+    <input type="hidden" id="editFinanceId">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Data *</label>
+        <input type="date" id="editFinanceDate">
+      </div>
+      <div class="form-group">
+        <label>Valor Investido (R$) *</label>
+        <input type="number" id="editFinanceInvested" step="0.01" oninput="calculateAutoProfit('edit')">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Valor de Retorno (R$) *</label>
+      <input type="number" id="editFinanceReturned" step="0.01" oninput="calculateAutoProfit('edit')">
+    </div>
+    <div class="form-group">
+      <label>Lucro Livre (R$)</label>
+      <input type="text" id="editFinanceProfit" readonly style="background:var(--gray-100);font-weight:600;color:var(--green-600);">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-success btn-block" onclick="saveEditFinanceEntry()">💾 Salvar Alterações</button>
+      <button class="btn btn-secondary btn-block" onclick="closeEditFinanceModal()">Cancelar</button>
+    </div>
+  </div>
 </div>
 
 <!-- Modal de Exclusão -->
 <div id="deleteModal" class="modal-overlay hidden">
-<div class="modal" style="text-align:center;">
-<h3 style="color:var(--red-600);margin-bottom:1rem;">⚠️ Confirmar Exclusão</h3>
-<p style="margin-bottom:1.5rem;">Tem certeza que deseja excluir este pedido? Esta ação não pode ser desfeita.</p>
-<div style="display:flex;gap:0.5rem;">
-<button class="btn btn-danger btn-block" id="confirmDeleteBtn">🗑️ Excluir Permanentemente</button>
-<button class="btn btn-secondary btn-block" onclick="closeDeleteModal()">Cancelar</button>
-</div>
-</div>
+  <div class="modal" style="text-align:center;">
+    <h3 style="color:var(--red-600);margin-bottom:1rem;">⚠️ Confirmar Exclusão</h3>
+    <p style="margin-bottom:1.5rem;">Tem certeza que deseja excluir este pedido? Esta ação não pode ser desfeita.</p>
+    <div style="display:flex;gap:0.5rem;">
+      <button class="btn btn-danger btn-block" id="confirmDeleteBtn">🗑️ Excluir Permanentemente</button>
+      <button class="btn btn-secondary btn-block" onclick="closeDeleteModal()">Cancelar</button>
+    </div>
+  </div>
 </div>
 
 <script src="script.js"></script>
