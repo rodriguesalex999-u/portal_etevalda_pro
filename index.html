@@ -27,17 +27,25 @@
       </div>
     </header>
 
+    <!-- BANNER DE ALERTA INTELIGENTE -->
+    <div id="pendingAlertBanner" class="alert-banner blink-alert hidden">
+      <div class="alert-content">
+        <i class="fas fa-bell"></i>
+        <span class="alert-text">🔴 <span id="pendingAlertCount">0</span> cliente(s) aguardando contato AGORA!</span>
+      </div>
+      <div class="alert-actions">
+        <button class="btn btn-danger btn-sm" onclick="scrollToPendingSection()">
+          <i class="fas fa-arrow-down"></i> Ver Pendentes
+        </button>
+      </div>
+    </div>
+
     <div class="tabs">
       <button class="tab-btn active" data-tab="dashboard"><i class="fas fa-home"></i> Dashboard</button>
       <button class="tab-btn" data-tab="report"><i class="fas fa-chart-line"></i> Relatório</button>
     </div>
 
     <div id="tab-dashboard" class="tab-content">
-      <div id="pendingAlert" class="alert-banner blink-alert hidden">
-        <div><span class="alert-text">🔴 <span id="alertCount">0</span> entrega(s) para fazer AGORA</span></div>
-        <button class="btn btn-danger btn-sm" onclick="openPendingAccordionFromAlert()"><i class="fas fa-bell"></i> Entregar Agora</button>
-      </div>
-
       <div class="card">
         <div class="card-header"><h2 class="card-title"><i class="fas fa-chart-pie"></i> Visão Geral</h2></div>
         <div class="finance-summary">
@@ -106,7 +114,7 @@
               <div class="form-group"><label>Nome do Cliente *</label><input type="text" id="pendingClientName"></div>
               <div class="form-group"><label>Telefone (WhatsApp) *</label><input type="tel" id="pendingClientPhone"></div>
               <div class="form-group"><label>Data Prevista *</label><input type="date" id="pendingPurchaseDate"></div>
-              <div class="form-group"><label>Horário Previsto</label><input type="text" id="pendingPurchaseTime" placeholder="ENTREGAR AGORA" value="ENTREGAR AGORA"></div>
+              <div class="form-group"><label>Horário Previsto</label><input type="time" id="pendingPurchaseTime" placeholder="HH:MM"></div>
             </div>
             <div class="form-group" style="margin-top:0.5rem;"><label>Resumo da Conversa (em português)</label><textarea id="pendingSummary" placeholder="Resumo em português..." style="min-height:80px;"></textarea></div>
             <button class="btn btn-success btn-sm btn-block" style="margin-top:1rem;" onclick="savePendingPurchase()"><i class="fas fa-save"></i> Salvar Pendente</button>
@@ -266,7 +274,28 @@
   </div>
 </div>
 
-<!-- ✅ MODAL DE EDIÇÃO FINANCEIRA COM CÁLCULO AUTOMÁTICO -->
+<!-- MODAL DE EDIÇÃO DE PENDENTE -->
+<div id="editPendingModal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header"><h3>✏️ Editar Pendente de Compra</h3><button class="modal-close" onclick="closeEditPendingModal()">&times;</button></div>
+    <input type="hidden" id="editPendingId">
+    <div class="modal-form-grid">
+      <div class="form-group"><label>Nome do Cliente *</label><input type="text" id="editPendingClientName"></div>
+      <div class="form-group"><label>Telefone (WhatsApp) *</label><input type="tel" id="editPendingClientPhone"></div>
+    </div>
+    <div class="modal-form-grid">
+      <div class="form-group"><label>Data Prevista *</label><input type="date" id="editPendingPurchaseDate"></div>
+      <div class="form-group"><label>Horário Previsto</label><input type="time" id="editPendingPurchaseTime"></div>
+    </div>
+    <div class="form-group"><label>Resumo da Conversa</label><textarea id="editPendingSummary" style="min-height:80px;"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-success btn-block" onclick="saveEditPending()">💾 Salvar Alterações</button>
+      <button class="btn btn-secondary btn-block" onclick="closeEditPendingModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DE EDIÇÃO FINANCEIRA -->
 <div id="editFinanceModal" class="modal-overlay hidden">
   <div class="modal">
     <div class="modal-header"><h3>✏️ Editar Registro Financeiro</h3><button class="modal-close" onclick="closeEditFinanceModal()">&times;</button></div>

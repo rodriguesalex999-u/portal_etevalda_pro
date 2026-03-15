@@ -2,9 +2,7 @@
 const SB_URL = "https://vcyrcjayfjueshnffzoc.supabase.co";
 const SB_KEY = "sb_publishable_E7U5H2QdRT20-Il8LZrlhg_2FnEx2Qk";
 const supabaseClient = window.supabase.createClient(SB_URL, SB_KEY);
-
-// ✅ BASE_URL DINÂMICA (funciona tanto localmente quanto em produção)
-const BASE_URL = window.location.origin;
+const BASE_URL = "https://portal-etevalda-pro.vercel.app";
 
 // ✅ ENTREGADORES ATUALIZADOS
 const DELIVERERS = {
@@ -25,49 +23,35 @@ let currentEditPendingId = null;
 let currentFilterType = 'current';
 let currentFilterMonth = 'current';
 
-// ==================== INICIALIZAÇÃO CORRIGIDA ====================
+// ✅ INTERVALO PARA VERIFICAÇÃO DE ALERTAS
+let pendingAlertInterval = null;
+
+// ==================== INICIALIZAÇÃO ====================
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('🚀 App iniciado. URL completa:', window.location.href);
+    console.log('🚀 App iniciado. URL:', window.location.href);
 
     const urlParams = new URLSearchParams(window.location.search);
     const pedidoId = urlParams.get('id')?.trim();
-    console.log('🔍 Parâmetro ID da URL:', pedidoId || '(nenhum)');
+    console.log('🔍 Parâmetro ID da URL:', pedidoId);
 
     if (pedidoId && isValidUUID(pedidoId)) {
-        console.log('✅ UUID válido detectado. Ativando MODO ENTREGADOR');
-
-        // Esconde o painel admin e mostra a página de entrega
-        const adminPanel = document.getElementById('adminPanel');
-        const deliveryPage = document.getElementById('deliveryPage');
-
-        if (adminPanel) adminPanel.classList.add('hidden');
-        if (deliveryPage) {
-            deliveryPage.classList.add('active');
-            deliveryPage.style.display = 'block'; // Garantia extra
-        }
-
-        // Carrega os dados do pedido
+        console.log('✅ UUID válido detectado. Modo entregador ativado.');
+        document.getElementById('adminPanel').classList.add('hidden');
+        document.getElementById('deliveryPage').classList.add('active');
         await loadDeliveryPage(pedidoId);
     } else {
-        console.log('🔧 Nenhum ID válido na URL. Modo ADMIN ativado.');
-
-        // Certifique-se de que a página de entrega está escondida
-        const deliveryPage = document.getElementById('deliveryPage');
-        if (deliveryPage) {
-            deliveryPage.classList.remove('active');
-            deliveryPage.style.display = 'none';
-        }
-
-        // Inicializa o painel admin
+        console.log('🔧 Modo admin ativado');
         setupTabs();
         setupRealtimeSubscription();
         setupAutoPaste();
         await loadData();
         setDefaultDates();
+
+        // ✅ INICIA A VERIFICAÇÃO DE ALERTAS A CADA 1 MINUTO
+        startPendingAlertChecker();
     }
 });
 
-// ✅ VALIDAÇÃO DE UUID CORRIGIDA
 function isValidUUID(uuid) {
     if (!uuid) return false;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -88,27 +72,20 @@ function setupAutoPaste() {
     });
 }
 
-// ==================== PÁGINA DE ROTA DO ENTREGADOR CORRIGIDA ====================
+// ==================== PÁGINA DE ROTA DO ENTREGADOR ====================
 async function loadDeliveryPage(orderId) {
     const content = document.getElementById('deliveryContent');
-    if (!content) {
-        console.error('❌ Elemento deliveryContent não encontrado!');
-        return;
-    }
-
     content.innerHTML = '<div class="delivery-loading"><div class="spinner"></div><p>Carregando dados da entrega...</p></div>';
 
     try {
         console.log('📥 Buscando pedido ID:', orderId);
-
-        // ✅ CORREÇÃO CRÍTICA: Desestruturação correta para o Supabase v2
         const { data: order, error } = await supabaseClient
             .from('pedidos')
             .select('*')
             .eq('id', orderId)
-            .maybeSingle(); // Usa maybeSingle para evitar erro se não encontrar
+            .maybeSingle();
 
-        console.log('📦 Resposta do Supabase:', { order, error });
+        console.log('📦 Resposta:', { order, error });
 
         if (error) {
             console.error('❌ Erro Supabase:', error);
@@ -117,18 +94,15 @@ async function loadDeliveryPage(orderId) {
         }
 
         if (!order) {
-            console.warn('Pedido não encontrado no banco para ID:', orderId);
             content.innerHTML = `
                 <div class="delivery-error">
                     <i class="fas fa-exclamation-triangle"></i>
                     <h3>Pedido não encontrado</h3>
-                    <p>O pedido pode ter sido excluído ou o link está incorreto.</p>
+                    <p>O link pode estar incorreto ou o pedido foi excluído.</p>
                     <button class="btn btn-primary btn-sm" style="margin-top:1rem;" onclick="window.location.href='${BASE_URL}'">Voltar ao Painel</button>
                 </div>`;
             return;
         }
-
-        console.log('✅ Pedido carregado com sucesso:', order.client_name);
 
         const observationsHtml = order.observations && order.observations.trim()
             ? `<div class="delivery-info">
@@ -137,7 +111,6 @@ async function loadDeliveryPage(orderId) {
             </div>`
             : '';
 
-        // ✅ Renderização completa dos dados
         content.innerHTML = `
             <div class="delivery-card">
                 <div class="delivery-header">
@@ -161,12 +134,12 @@ async function loadDeliveryPage(orderId) {
             </div>
         `;
     } catch (err) {
-        console.error('💥 Erro crítico ao carregar entrega:', err);
-        content.innerHTML = `<div class="delivery-error"><i class="fas fa-exclamation-triangle"></i><h3>Erro ao carregar</h3><p>${err.message || 'Tente recarregar a página.'}</p></div>`;
+        console.error('💥 Erro crítico:', err);
+        content.innerHTML = `<div class="delivery-error"><i class="fas fa-exclamation-triangle"></i><h3>Erro ao carregar</h3><p>Tente recarregar a página.</p></div>`;
     }
 }
 
-// ✅ WhatsApp com observações
+// ✅ WhatsApp com observações - FORMATADO CORRETAMENTE
 function openClientWhatsApp(clientPhone, clientName, products, observations, delivererName) {
     if (!delivererName || delivererName === '') {
         for (const [phone, data] of Object.entries(DELIVERERS)) {
@@ -178,16 +151,26 @@ function openClientWhatsApp(clientPhone, clientName, products, observations, del
     }
     if (!delivererName) delivererName = 'Entregador';
 
-    let message = `Olá, sou ${delivererName} da Etevalda Joias.\n📦 Seu pedido:\n${products}\n`;
+    // ✅ MENSAGEM FORMATADA COM PARÁGRAFOS E QUEBRAS DE LINHA
+    let message = `Olá, sou ${delivererName} da Etevalda Joias.\n\n`;
+    message += `📦 Seu pedido:\n\n${products}\n\n`;
+
     if (observations && observations.trim() !== '') {
-        message += `\n📝 Observações importantes:\n${observations}\n`;
+        message += `📝 Observações importantes:\n${observations}\n\n`;
     }
-    message += `\nJá estou com sua localização e saindo para entrega! 🚀`;
+
+    message += `Já estou com sua localização e saindo para entrega! 🚀`;
 
     const cleanPhone = clientPhone.replace(/\D/g, '');
     const fullPhone = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
     const url = `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
+
+    // ✅ Se for um pendente, atualiza o status para "completed"
+    const pendingItem = pendingPurchases.find(p => p.client_phone === clientPhone);
+    if (pendingItem && pendingItem.status === 'pending') {
+        markPendingCompleted(pendingItem.id);
+    }
 }
 
 // ==================== FUNÇÕES DO ADMIN ====================
@@ -218,6 +201,7 @@ async function loadData() {
         await loadFinanceEntries();
         renderAllLists();
         updateStats();
+        checkPendingAlerts(); // ✅ Verifica alertas ao carregar dados
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
         showToast('⚠️ Erro ao sincronizar com o banco', 'error');
@@ -259,7 +243,10 @@ function setupRealtimeSubscription() {
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'pending_purchases' }, () => {
             const urlParams = new URLSearchParams(window.location.search);
-            if (!urlParams.get('id')) loadData();
+            if (!urlParams.get('id')) {
+                loadData();
+                checkPendingAlerts(); // ✅ Reavalia alertas quando pendentes mudam
+            }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'finance_entries' }, () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -287,6 +274,58 @@ async function refreshData(evt) {
     setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 500);
 }
 
+// ==================== SISTEMA DE ALERTA INTELIGENTE ====================
+function startPendingAlertChecker() {
+    checkPendingAlerts(); // Executa imediatamente
+    if (pendingAlertInterval) clearInterval(pendingAlertInterval);
+    pendingAlertInterval = setInterval(checkPendingAlerts, 60000); // A cada 1 minuto
+}
+
+function checkPendingAlerts() {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    console.log('🔔 Verificando alertas para:', today, currentTime);
+
+    const duePendings = pendingPurchases.filter(p => {
+        if (p.status !== 'pending') return false;
+
+        // Verifica se a data já chegou ou passou
+        const purchaseDate = p.purchase_date;
+        if (purchaseDate < today) return true; // Data passada
+
+        // Se for hoje, verifica o horário
+        if (purchaseDate === today && p.purchase_time) {
+            return p.purchase_time <= currentTime; // Horário já passou ou é agora
+        }
+
+        return purchaseDate === today && !p.purchase_time; // Hoje sem horário definido
+    });
+
+    console.log('🔔 Pendentes com alerta:', duePendings.length);
+
+    const alertBanner = document.getElementById('pendingAlertBanner');
+    const alertCount = document.getElementById('pendingAlertCount');
+
+    if (duePendings.length > 0) {
+        alertCount.textContent = duePendings.length;
+        alertBanner.classList.remove('hidden');
+    } else {
+        alertBanner.classList.add('hidden');
+    }
+}
+
+function scrollToPendingSection() {
+    const pendingSection = document.getElementById('pendingAccordionContent');
+    if (pendingSection) {
+        if (pendingSection.classList.contains('hidden')) {
+            togglePendingAccordion();
+        }
+        pendingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
 // ==================== RENDERING UNIFICADO ====================
 function renderAllLists() { renderActiveList(); renderHistoryList(); renderPendingList(); }
 
@@ -298,10 +337,19 @@ function getHistoryOrders() {
     return orders.filter(o => ['delivered', 'cancelled'].includes(o.status));
 }
 
-// ✅ LISTA DE PEDIDOS ATIVOS
-function renderActiveList() {
-    const container = document.getElementById('activeList');
+// ✅ FUNÇÕES DE BUSCA REATIVAS
+function searchActiveOrders() { 
     const query = document.getElementById('activeSearch')?.value.toLowerCase() || '';
+    renderActiveList(query);
+}
+
+function searchHistoryOrders() { 
+    const query = document.getElementById('historySearch')?.value.toLowerCase() || '';
+    renderHistoryList(query);
+}
+
+function renderActiveList(query = '') {
+    const container = document.getElementById('activeList');
     const filtered = getActiveOrders().filter(o =>
         o.client_name?.toLowerCase().includes(query) ||
         o.client_phone?.includes(query)
@@ -311,10 +359,8 @@ function renderActiveList() {
     container.innerHTML = filtered.map(o => createOrderCard(o, true)).join('');
 }
 
-// ✅ LISTA DE HISTÓRICO
-function renderHistoryList() {
+function renderHistoryList(query = '') {
     const container = document.getElementById('historyList');
-    const query = document.getElementById('historySearch')?.value.toLowerCase() || '';
     const filtered = getHistoryOrders().filter(o =>
         o.client_name?.toLowerCase().includes(query) ||
         o.client_phone?.includes(query)
@@ -324,7 +370,6 @@ function renderHistoryList() {
     container.innerHTML = filtered.map(o => createOrderCard(o, false)).join('');
 }
 
-// ✅ CARD DE PEDIDO
 function createOrderCard(order, isActive) {
     const statusBadge = {
         pending: '<span class="badge badge-pending">⏳ Pendente</span>',
@@ -360,12 +405,17 @@ function renderPendingList() {
         return;
     }
     container.innerHTML = pendingPurchases.map(p => {
+        let badgeHtml = '';
+        if (p.status === 'pending') badgeHtml = '<span class="badge badge-pending">📅 Pendente</span>';
+        else if (p.status === 'completed') badgeHtml = '<span class="badge badge-delivered">✅ Concluído</span>';
+        else badgeHtml = '<span class="badge badge-cancelled">❌ Cancelado</span>';
+
         const whatsappLink = generateWhatsAppLink(p.client_phone, p.client_name, 'Olá, ficamos combinado pra hoje. Estamos confirmando sua entrega!');
         return `<div class="order-item">
             <div class="order-item-header">
                 <div><div class="order-client">${escapeHtml(p.client_name)}</div>
                 <a href="${whatsappLink}" target="_blank" class="order-phone"><i class="fab fa-whatsapp"></i> ${formatPhone(p.client_phone)}</a></div>
-                <span class="badge badge-pending">📅 Pendente</span>
+                ${badgeHtml}
             </div>
             <div class="order-meta">
                 <span><i class="fas fa-calendar"></i> ${formatDateBR(p.purchase_date)}</span>
@@ -375,13 +425,13 @@ function renderPendingList() {
             <div class="order-actions">
                 <button class="btn btn-outline btn-sm" onclick="editPending('${p.id}')">✏️ Editar</button>
                 <button class="btn btn-danger btn-sm" onclick="confirmDeletePending('${p.id}')">🗑️ Excluir</button>
-                <a href="${whatsappLink}" target="_blank" class="btn btn-success btn-sm">💬 Confirmar</a>
+                <button class="btn btn-success btn-sm" onclick="markPendingCompleted('${p.id}')">✅ Confirmar / Concluído</button>
             </div>
         </div>`;
     }).join('');
 }
 
-// ==================== EXCLUSÃO CORRIGIDA ====================
+// ==================== EXCLUSÃO ====================
 function confirmDelete(orderId) {
     currentDeleteId = orderId;
     currentDeleteTable = 'pedidos';
@@ -420,7 +470,7 @@ async function executeDelete() {
 
 document.getElementById('confirmDeleteBtn').addEventListener('click', executeDelete);
 
-// ==================== 📊 FILTROS DO RELATÓRIO FINANCEIRO ====================
+// ==================== FILTROS DO RELATÓRIO FINANCEIRO ====================
 function setupReportFilters() {
     document.querySelectorAll('.filter-chip').forEach(chip => {
         chip.addEventListener('click', () => {
@@ -469,8 +519,14 @@ function getDateRange() {
         endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
     } else {
         const monthsAgo = parseInt(currentFilterMonth);
-        startDate = new Date(now.getFullYear(), now.getMonth() + monthsAgo, 1);
-        endDate = new Date(now.getFullYear(), now.getMonth() + monthsAgo + 1, 0, 23, 59, 59);
+        if (isNaN(monthsAgo)) {
+            // Caso seja 'custom' ou outro valor inválido, usa mês atual
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        } else {
+            startDate = new Date(now.getFullYear(), now.getMonth() + monthsAgo, 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + monthsAgo + 1, 0, 23, 59, 59);
+        }
     }
 
     return { startDate, endDate };
@@ -503,15 +559,14 @@ function updateReportData() {
     } else if (currentFilterType === '30') {
         periodLabel = 'Últimos 30 dias';
     } else {
-        const monthsAgo = Math.abs(parseInt(currentFilterMonth));
-        periodLabel = `${monthsAgo} Mês(es) Atrás`;
+        const monthsAgo = Math.abs(parseInt(currentFilterMonth) || 0);
+        periodLabel = monthsAgo === 0 ? 'Mês Atual' : `${monthsAgo} Mês(es) Atrás`;
     }
     document.getElementById('currentPeriod').textContent = periodLabel;
 
     renderFilteredFinanceTable(filteredEntries);
 }
 
-// ✅ RENDERIZAÇÃO DA TABELA FINANCEIRA
 function renderFilteredFinanceTable(entries) {
     const tbody = document.getElementById('financeTableBody');
     if (!tbody) return;
@@ -550,11 +605,6 @@ function renderFilteredFinanceTable(entries) {
     }).join('');
 }
 
-function renderFinanceTable() {
-    updateReportData();
-}
-
-// ✅ CÁLCULO AUTOMÁTICO DE LUCRO
 function calculateAutoProfit(context) {
     let invested, returned, profitField;
 
@@ -572,7 +622,6 @@ function calculateAutoProfit(context) {
     profitField.value = formatCurrency(profit);
 }
 
-// ✅ FUNÇÃO DE EDIÇÃO FINANCEIRA
 function editFinanceEntry(entryId, invested, returned, date) {
     currentFinanceEditId = entryId;
     document.getElementById('editFinanceId').value = entryId;
@@ -629,7 +678,6 @@ async function saveEditFinanceEntry() {
     }
 }
 
-// ✅ FUNÇÃO DE EXCLUSÃO FINANCEIRA
 async function deleteFinanceEntry(entryId) {
     if (!confirm('⚠️ Tem certeza que deseja excluir este registro financeiro? Esta ação não pode ser desfeita.')) {
         return;
@@ -657,10 +705,7 @@ async function deleteFinanceEntry(entryId) {
     }
 }
 
-function searchActiveOrders() { renderActiveList(); }
-function searchHistoryOrders() { renderHistoryList(); }
-
-// ==================== 🔄 EXTRAÇÃO DE DADOS ====================
+// ==================== EXTRAÇÃO DE DADOS ====================
 async function handleExtract() {
     const conversation = document.getElementById('extractConversation').value.trim();
     if (!conversation) { showToast('⚠️ Por favor, cole a conversa com o cliente', 'warning'); return; }
@@ -831,7 +876,6 @@ function updateSendButton() {
 
 document.addEventListener('change', (e) => { if (e.target.id === 'selectedDeliverer') updateSendButton(); });
 
-// ✅ FUNÇÃO DE GERAÇÃO DE LINK CORRIGIDA
 async function handleGenerateLink() {
     const selectedDeliverer = document.getElementById('selectedDeliverer').value;
     if (!selectedDeliverer) { showToast('⚠️ Selecione um entregador', 'warning'); return; }
@@ -875,7 +919,6 @@ async function handleGenerateLink() {
             return;
         }
 
-        // ✅ CORREÇÃO: Concatenação correta do link
         const routeLink = `${BASE_URL}/?id=${novoPedido.id}`;
         const textToCopy = `👇 Entrega\nCliente: ${clientName}\n${routeLink}`;
 
@@ -959,18 +1002,38 @@ async function savePendingPurchase() {
     } catch (err) { showToast('❌ Falha na conexão', 'error'); console.error(err); }
 }
 
+// ✅ FUNÇÃO EDIT PENDING CORRIGIDA
 function editPending(id) {
     const p = pendingPurchases.find(item => item.id === id);
-    if (!p) return;
+    if (!p) {
+        showToast('❌ Pendente não encontrado', 'error');
+        return;
+    }
+
     currentEditPendingId = id;
     document.getElementById('editPendingId').value = id;
     document.getElementById('editPendingClientName').value = p.client_name || '';
     document.getElementById('editPendingClientPhone').value = p.client_phone || '';
     document.getElementById('editPendingPurchaseDate').value = p.purchase_date || '';
-    document.getElementById('editPendingPurchaseTime').value = p.purchase_time || '';
+
+    // ✅ Garante que o horário seja preenchido corretamente
+    if (p.purchase_time) {
+        document.getElementById('editPendingPurchaseTime').value = p.purchase_time;
+    } else {
+        document.getElementById('editPendingPurchaseTime').value = '';
+    }
+
     document.getElementById('editPendingSummary').value = p.conversation_summary || '';
-    document.getElementById('editPendingModal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
+
+    // ✅ Abre o modal de edição
+    const modal = document.getElementById('editPendingModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    } else {
+        console.error('❌ Modal editPendingModal não encontrado no HTML');
+        showToast('❌ Erro: Modal de edição não encontrado', 'error');
+    }
 }
 
 function closeEditPendingModal() {
@@ -996,6 +1059,26 @@ async function saveEditPending() {
         showToast('✅ Pendente atualizado!', 'success');
         await loadData();
     } catch (err) { showToast('❌ Erro de conexão', 'error'); console.error(err); }
+}
+
+// ✅ FUNÇÃO PARA MARCAR COMO COMPLETED/CONCLUÍDO
+async function markPendingCompleted(id) {
+    if (!confirm('Marcar como concluído?')) return;
+    try {
+        const { error } = await supabaseClient
+            .from('pending_purchases')
+            .update({ status: 'completed' })
+            .eq('id', id);
+        if (error) {
+            showToast('❌ Erro ao atualizar: ' + error.message, 'error');
+            return;
+        }
+        showToast('✅ Pendente marcado como concluído!', 'success');
+        await loadData();
+        checkPendingAlerts(); // Atualiza o alerta
+    } catch (err) {
+        showToast('❌ Falha', 'error');
+    }
 }
 
 function openPendingAccordionFromAlert() {
@@ -1128,6 +1211,7 @@ function isLikelyHumanName(name) {
     return capitalizedWords.length > 0;
 }
 
+// ✅ FUNÇÃO addFinanceEntry CORRIGIDA (NÃO ENVIA profit)
 async function addFinanceEntry() {
     const dateEl = document.getElementById('financeDate'),
         investedEl = document.getElementById('financeInvested'),
@@ -1143,12 +1227,16 @@ async function addFinanceEntry() {
         return;
     }
 
-    const profit = returned - invested;
-
     try {
+        // ✅ NÃO enviar profit - deixa o banco calcular
         const { data, error } = await supabaseClient
             .from('finance_entries')
-            .insert([{ date, invested, returned, profit }])
+            .insert([{ 
+                date, 
+                invested, 
+                returned
+                // profit NÃO é enviado
+            }])
             .select();
 
         if (error) {

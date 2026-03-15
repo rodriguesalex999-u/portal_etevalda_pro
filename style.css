@@ -234,6 +234,63 @@
     .logo-admin i { font-size: 1.5rem; }
     .header-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     
+    /* ✅ NOVO BANNER DE ALERTA */
+    #pendingAlertBanner {
+    margin-bottom: 1rem;
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    background: linear-gradient(135deg, var(--red-600), #b91c1c);
+    color: white;
+    border: 2px solid #fecaca;
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.5);
+    }
+    
+    .alert-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    }
+    
+    .alert-content i {
+    font-size: 1.5rem;
+    animation: bellRing 1.5s infinite;
+    }
+    
+    .alert-actions .btn-danger {
+    background: white;
+    color: var(--red-600);
+    border: 2px solid white;
+    }
+    
+    .alert-actions .btn-danger:hover {
+    background: #fecaca;
+    color: #b91c1c;
+    border-color: #fecaca;
+    }
+    
+    @keyframes bellRing {
+    0%, 100% { transform: rotate(0deg); }
+    20%, 60% { transform: rotate(15deg); }
+    40%, 80% { transform: rotate(-15deg); }
+    }
+    
+    /* ANIMAÇÃO BLINK PARA O BANNER */
+    .blink-alert {
+    animation: blink-banner 1.5s infinite;
+    }
+    
+    @keyframes blink-banner {
+    0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.5); }
+    50% { box-shadow: 0 0 40px rgba(220, 38, 38, 0.8); }
+    }
+    
     .tabs {
     display: flex;
     gap: 0.25rem;
@@ -718,20 +775,6 @@
     .badge-delivered { background: #d1fae5; color: #065f46; }
     .badge-cancelled { background: #fee2e2; color: #991b1b; }
     
-    .alert-banner {
-    border-radius: var(--radius);
-    padding: 1rem 1.25rem;
-    margin-bottom: 1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    }
-    
-    .alert-text { font-weight: 500; }
-    .alert-count { font-weight: 700; color: var(--red-600); }
-    
     .search-box { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .search-box input { flex: 1; min-width: 200px; }
     
@@ -752,9 +795,6 @@
     
     .finance-card .label { font-size: 0.8rem; opacity: 0.9; margin-bottom: 0.25rem; }
     .finance-card .value { font-size: 1.5rem; font-weight: 700; color: var(--gold); }
-    
-    .search-box { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .search-box input { flex: 1; min-width: 200px; }
     
     /* ========== MODAIS ========== */
     .modal-overlay {
@@ -808,25 +848,6 @@
     .empty-state { text-align: center; padding: 2rem; color: var(--gray-600); }
     .empty-state i { font-size: 3rem; color: var(--gray-300); margin-bottom: 1rem; }
     
-    .modal-complete-delivery .form-group.required label::after {
-    content: ' *';
-    color: var(--red-600);
-    }
-    
-    .modal-complete-delivery .value-diff-warning {
-    background: #fef3c7;
-    border: 1px solid #f59e0b;
-    border-radius: 8px;
-    padding: 0.75rem;
-    margin: 0.5rem 0;
-    font-size: 0.85rem;
-    color: #92400e;
-    display: none;
-    }
-    
-    .modal-complete-delivery .value-diff-warning.show { display: block; }
-    
-    /* ========== RESPONSIVO ========== */
     @media (max-width: 768px) {
     .container { padding: 0.5rem; }
     header { padding: 1rem; }
@@ -849,6 +870,10 @@
     th, td { padding: 0.75rem 0.5rem; }
     td .action-buttons { flex-direction: column; }
     td .btn-edit-finance, td .btn-delete-finance { padding: 0.35rem 0.5rem; font-size: 0.8rem; }
+    #pendingAlertBanner { flex-direction: column; align-items: flex-start; }
+    .alert-content { width: 100%; }
+    .alert-actions { width: 100%; }
+    .alert-actions .btn { width: 100%; }
     }
     
     .hidden { display: none !important; }
@@ -862,8 +887,6 @@
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     }
-    
-    @keyframes spin { to { transform: rotate(360deg); } }
     
     .deliverer-select {
     margin-bottom: 1rem;
@@ -917,5 +940,4 @@
     .toast.warning { background: #f59e0b; }
     
     @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0%); opacity: 1; } }
-    
     @keyframes slideOut { from { transform: translateX(0%); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
