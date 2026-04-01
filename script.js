@@ -470,6 +470,30 @@ async function executeDelete() {
 
 document.getElementById('confirmDeleteBtn').addEventListener('click', executeDelete);
 
+// ==================== FECHAR MODAIS (ESC + BACKDROP) ====================
+const MODAL_CLOSE_MAP = {
+    'editOrderModal': closeEditModal,
+    'editPendingModal': closeEditPendingModal,
+    'editFinanceModal': closeEditFinanceModal,
+    'deleteModal': closeDeleteModal
+};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    for (const [id, closeFn] of Object.entries(MODAL_CLOSE_MAP)) {
+        const el = document.getElementById(id);
+        if (el && !el.classList.contains('hidden')) { closeFn(); break; }
+    }
+});
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+        if (e.target !== overlay) return;
+        const closeFn = MODAL_CLOSE_MAP[overlay.id];
+        if (closeFn) closeFn();
+    });
+});
+
 // ==================== FILTROS DO RELATÓRIO FINANCEIRO ====================
 function setupReportFilters() {
     document.querySelectorAll('.filter-chip').forEach(chip => {
@@ -540,9 +564,10 @@ function updateReportData() {
         return entryDate >= startDate && entryDate <= endDate;
     });
 
+    // CÁLCULO CORRETO - SOMA INVESTIDO E RETORNO, DEPOIS CALCULA O LUCRO
     const totalInvested = filteredEntries.reduce((sum, entry) => sum + (parseFloat(entry.invested) || 0), 0);
     const totalReturned = filteredEntries.reduce((sum, entry) => sum + (parseFloat(entry.returned) || 0), 0);
-    const totalProfit = filteredEntries.reduce((sum, entry) => sum + (parseFloat(entry.profit) || 0), 0);
+    const totalProfit = totalReturned - totalInvested; // ISSO É O QUE IMPORTA!
 
     document.getElementById('summaryInvested').textContent = formatCurrency(totalInvested);
     document.getElementById('summaryRevenue').textContent = formatCurrency(totalReturned);
@@ -581,7 +606,7 @@ function renderFilteredFinanceTable(entries) {
     tbody.innerHTML = sortedEntries.map(entry => {
         const invested = parseFloat(entry.invested) || 0;
         const returned = parseFloat(entry.returned) || 0;
-        const profit = parseFloat(entry.profit) || 0;
+        const profit = returned - invested; // CALCULA NA HORA PARA GARANTIR
         const margin = invested > 0 ? ((profit / invested) * 100).toFixed(1) : 0;
         const marginClass = profit >= 0 ? 'margin-positive' : 'margin-negative';
 
@@ -590,7 +615,7 @@ function renderFilteredFinanceTable(entries) {
             <td>${formatCurrency(invested)}</td>
             <td>${formatCurrency(returned)}</td>
             <td>${formatCurrency(profit)}</td>
-            <td class="${marginClass}">${margin}%</td>
+            <td><span class="margin-badge ${marginClass}">${margin}%</span></td>
             <td>
                 <div class="action-buttons">
                     <button class="btn-edit-finance" onclick="editFinanceEntry('${entry.id}', ${invested}, ${returned}, '${entry.date}')">
@@ -941,8 +966,9 @@ async function handleGenerateLink() {
 
 function copyGeneratedLink() {
     const text = document.getElementById('linkOutput').textContent;
-    navigator.clipboard.writeText(text);
-    showToast('📋 Texto copiado!', 'success');
+    navigator.clipboard.writeText(text)
+        .then(() => showToast('📋 Texto copiado!', 'success'))
+        .catch(() => showToast('⚠️ Não foi possível copiar automaticamente', 'warning'));
 }
 
 // ==================== PENDENTES DE COMPRA ====================
@@ -1160,14 +1186,24 @@ function formatPhoneForDB(phone) {
 
 function formatDateBR(dateStr) {
     if (!dateStr) return '—';
-    const d = new Date(dateStr + 'T00:00:00');
+    const dateOnly = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+    const d = new Date(dateOnly + 'T00:00:00');
     return d.toLocaleDateString('pt-BR');
 }
 
 function formatCurrency(value) {
-    if (!value) return 'R$ 0,00';
-    const num = typeof value === 'string' ? parseFloat(value.replace('R$', '').replace(',', '.')) : value;
-    return `R$ ${num.toFixed(2).replace('.', ',')}`;
+    if (value === null || value === undefined) return 'R$ 0,00';
+    let num;
+    if (typeof value === 'string') {
+        const cleaned = value.replace(/R\$\s*/g, '').trim().replace(/\./g, '').replace(',', '.');
+        num = parseFloat(cleaned);
+    } else {
+        num = parseFloat(value);
+    }
+    if (isNaN(num)) return 'R$ 0,00';
+    const parts = num.toFixed(2).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `R$ ${parts[0]},${parts[1]}`;
 }
 
 function escapeHtml(text) {
@@ -1193,10 +1229,11 @@ function showToast(message, type = 'info') {
 }
 
 function updateStats() {
-    const today = getActiveOrders();
-    const completed = getHistoryOrders();
-    document.getElementById('statToday').textContent = today.length;
-    document.getElementById('statDelivered').textContent = completed.filter(o => o.status === 'delivered').length;
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const todayOrders = orders.filter(o => o.created_at && new Date(o.created_at) >= yesterday);
+    document.getElementById('statToday').textContent = todayOrders.length;
+    document.getElementById('statDelivered').textContent = orders.filter(o => o.status === 'delivered').length;
 }
 
 function isLikelyHumanName(name) {
@@ -1228,33 +1265,26 @@ async function addFinanceEntry() {
     }
 
     try {
-        // ✅ NÃO enviar profit - deixa o banco calcular
-        const { data, error } = await supabaseClient
+        // Salva no banco
+        const { error } = await supabaseClient
             .from('finance_entries')
-            .insert([{ 
-                date, 
-                invested, 
-                returned
-                // profit NÃO é enviado
-            }])
-            .select();
+            .insert([{ date, invested, returned }]);
 
         if (error) {
             showToast('❌ Erro: ' + error.message, 'error');
             return;
         }
 
-        const inserted = Array.isArray(data) ? data[0] : data;
-        financeEntries = [inserted, ...financeEntries];
+        // RECARREGA OS DADOS E ATUALIZA A TELA
+        await loadFinanceEntries();
+        updateReportData();
 
-        if (document.getElementById('tab-report') && !document.getElementById('tab-report').classList.contains('hidden')) {
-            updateReportData();
-        }
-
+        // Limpa os campos
         investedEl.value = '';
         returnedEl.value = '';
         document.getElementById('financeProfit').value = '';
-        showToast('✅ Registro salvo!', 'success');
+        
+        showToast('✅ Registro salvo e relatório atualizado!', 'success');
     } catch (err) {
         showToast('❌ Erro de conexão', 'error');
         console.error(err);

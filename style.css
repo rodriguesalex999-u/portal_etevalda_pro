@@ -14,12 +14,16 @@
     --green-50: #f0fdf4;
     --green-500: #22c55e;
     --green-600: #16a34a;
+    --green-700: #15803d;
     --red-50: #fef2f2;
+    --red-400: #f87171;
     --red-500: #ef4444;
     --red-600: #dc2626;
     --blue-50: #eff6ff;
+    --blue-200: #bfdbfe;
     --blue-500: #3b82f6;
     --blue-600: #2563eb;
+    --blue-900: #1e3a8a;
     --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
     --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
     --radius: 12px;
@@ -118,6 +122,8 @@
     border-radius: var(--radius);
     border-left: 3px solid var(--gold);
     white-space: pre-wrap;
+    overflow-wrap: break-word;
+    word-break: break-word;
     }
     
     .delivery-value.observations {
@@ -587,7 +593,12 @@
     margin-top: 0.25rem;
     }
     
+    .finance-card .label { font-size: 0.8rem; opacity: 0.9; margin-bottom: 0.25rem; }
+    .finance-card .value { font-size: 1.5rem; font-weight: 700; color: var(--gold); }
+    .finance-card .sub { font-size: 0.75rem; opacity: 0.7; margin-top: 0.15rem; }
+    
     /* ========== TABELA DE HISTÓRICO ========== */
+    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .table-header {
     display: flex;
     justify-content: space-between;
@@ -659,11 +670,15 @@
     
     td:nth-child(5) { 
     font-weight: 600; 
-    padding: 0.35rem 0.75rem;
-    border-radius: 9999px;
-    display: inline-block;
     }
     
+    .margin-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    }
     .margin-positive { background: #d1fae5; color: #065f46; }
     .margin-negative { background: #fee2e2; color: #991b1b; }
     
@@ -755,7 +770,7 @@
     flex-wrap: wrap;
     }
     
-    .order-products { font-size: 0.95rem; margin-bottom: 0.5rem; }
+    .order-products { font-size: 0.95rem; margin-bottom: 0.5rem; overflow-wrap: break-word; word-break: break-word; }
     .order-value { font-weight: 700; color: var(--green-600); font-size: 1.1rem; }
     .order-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
     
@@ -792,9 +807,6 @@
     border-radius: var(--radius);
     text-align: center;
     }
-    
-    .finance-card .label { font-size: 0.8rem; opacity: 0.9; margin-bottom: 0.25rem; }
-    .finance-card .value { font-size: 1.5rem; font-weight: 700; color: var(--gold); }
     
     /* ========== MODAIS ========== */
     .modal-overlay {
