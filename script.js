@@ -10,7 +10,7 @@ const DELIVERERS = {
     '5565992038306': { name: 'Raielle', phone: '5565992038306' },
     '5566999126191': { name: 'Valdir', phone: '5566999126191' },
     '5566996952171': { name: 'Ginaldo', phone: '5566996952171' },
-    '5565992022295': { name: 'Valdicleia', phone: '5565992022295' },
+    '5565992022295': { name: 'Sol', phone: '5565992022295' },
 };
 
 let orders = [], pendingPurchases = [], financeEntries = [];
