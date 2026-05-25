@@ -1,14 +1,28 @@
-// ==================== CONFIGURAÇÃO SUPABASE ====================
-const SB_URL = "https://vcyrcjayfjueshnffzoc.supabase.co";
-const SB_KEY = "sb_publishable_E7U5H2QdRT20-Il8LZrlhg_2FnEx2Qk";
-const supabaseClient = window.supabase.createClient(SB_URL, SB_KEY);
+// ==================== CONFIGURAÇÃO FIREBASE ====================
 const BASE_URL = "https://portal-etevalda-pro.vercel.app";
+
+// CONFIGURAÇÃO DO SEU PROJETO FIREBASE (cole do seu console)
+const firebaseConfig = {
+  apiKey: "AIzaSyBCPzOz6ep9-msLy1fSw9FEALvrOw2j-AI",
+  authDomain: "portal-etevalda-entregas-7f130.firebaseapp.com",
+  projectId: "portal-etevalda-entregas-7f130",
+  storageBucket: "portal-etevalda-entregas-7f130.firebasestorage.app",
+  messagingSenderId: "232114227897",
+  appId: "1:232114227897:web:62cc2ab43e8c4945712968"
+};
+
+// Inicializa o Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// Referências das coleções
+const pedidosCollection = db.collection('pedidos');
+const pendingPurchasesCollection = db.collection('pending_purchases');
+const financeEntriesCollection = db.collection('finance_entries');
 
 // ✅ ENTREGADORES ATUALIZADOS
 const DELIVERERS = {
-    '5565992512338': { name: 'Santiago', phone: '5565992512338' },
     '5565992038306': { name: 'Raielle', phone: '5565992038306' },
-    '5566999126191': { name: 'Valdir', phone: '5566999126191' },
     '5566996952171': { name: 'Ginaldo', phone: '5566996952171' },
     '5565992022295': { name: 'Sol', phone: '5565992022295' },
     '5565996328797': { name: 'Flavia', phone: '5565996328797' },
@@ -45,7 +59,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
         console.log('🔧 Modo admin ativado');
         setupTabs();
-        setupRealtimeSubscription();
+        // setupRealtimeSubscription(); // REMOVIDO - Não usamos mais Supabase
         setupAutoPaste();
         await loadData();
         setDefaultDates();
@@ -82,19 +96,10 @@ async function loadDeliveryPage(orderId) {
 
     try {
         console.log('📥 Buscando pedido ID:', orderId);
-        const { data: order, error } = await supabaseClient
-            .from('pedidos')
-            .select('*')
-            .eq('id', orderId)
-            .maybeSingle();
+        const doc = await pedidosCollection.doc(orderId).get();
+        const order = doc.exists ? { id: doc.id, ...doc.data() } : null;
 
-        console.log('📦 Resposta:', { order, error });
-
-        if (error) {
-            console.error('❌ Erro Supabase:', error);
-            content.innerHTML = `<div class="delivery-error"><i class="fas fa-exclamation-triangle"></i><h3>Erro de conexão</h3><p>${error.message || 'Verifique sua internet.'}</p></div>`;
-            return;
-        }
+        console.log('📦 Resposta:', { order });
 
         if (!order) {
             content.innerHTML = `
@@ -212,30 +217,41 @@ async function loadData() {
 }
 
 async function loadOrders() {
-    const { data, error } = await supabaseClient
-        .from('pedidos')
-        .select('*')
-        .order('created_at', { ascending: false });
-    if (error) { console.error('Erro pedidos:', error); showToast('⚠️ Erro ao carregar pedidos', 'error'); return; }
-    orders = data || [];
+    try {
+        const snapshot = await pedidosCollection.orderBy('created_at', 'desc').get();
+        orders = [];
+        snapshot.forEach(doc => {
+            orders.push({ id: doc.id, ...doc.data() });
+        });
+    } catch (error) {
+        console.error('Erro pedidos:', error);
+        showToast('⚠️ Erro ao carregar pedidos', 'error');
+    }
 }
-
 async function loadPendingPurchases() {
-    const { data, error } = await supabaseClient
-        .from('pending_purchases')
-        .select('*')
-        .order('purchase_date', { ascending: true });
-    if (error) { console.error('Erro pendentes:', error); return; }
-    pendingPurchases = data || [];
+    try {
+        const snapshot = await pendingPurchasesCollection.orderBy('purchase_date', 'asc').get();
+        pendingPurchases = [];
+        snapshot.forEach(doc => {
+            pendingPurchases.push({ id: doc.id, ...doc.data() });
+        });
+    } catch (error) {
+        console.error('Erro pendentes:', error);
+        showToast('⚠️ Erro ao carregar pendentes', 'error');
+    }
 }
 
 async function loadFinanceEntries() {
-    const { data, error } = await supabaseClient
-        .from('finance_entries')
-        .select('*')
-        .order('date', { ascending: false });
-    if (error) { console.error('Erro financeiro:', error); return; }
-    financeEntries = data || [];
+    try {
+        const snapshot = await financeEntriesCollection.orderBy('date', 'desc').get();
+        financeEntries = [];
+        snapshot.forEach(doc => {
+            financeEntries.push({ id: doc.id, ...doc.data() });
+        });
+    } catch (error) {
+        console.error('Erro financeiro:', error);
+        showToast('⚠️ Erro ao carregar financeiro', 'error');
+    }
 }
 
 function setupRealtimeSubscription() {
@@ -457,16 +473,16 @@ async function executeDelete() {
     if (!currentDeleteId) return;
     const table = currentDeleteTable || 'pedidos';
     try {
-        const { error } = await supabaseClient.from(table).delete().eq('id', currentDeleteId);
-        if (error) {
-            showToast('❌ Erro: ' + error.message, 'error');
-            return;
+        if (table === 'pedidos') {
+            await pedidosCollection.doc(currentDeleteId).delete();
+        } else if (table === 'pending_purchases') {
+            await pendingPurchasesCollection.doc(currentDeleteId).delete();
         }
         closeDeleteModal();
         showToast('🗑️ Registro excluído com sucesso!', 'success');
         await loadData();
     } catch (err) {
-        showToast('❌ Erro de conexão', 'error');
+        showToast('❌ Erro de conexão: ' + err.message, 'error');
         console.error(err);
     }
 }
@@ -559,6 +575,9 @@ function getDateRange() {
     return { startDate, endDate };
 }
 
+// Variável global para o gráfico
+let deliveryChart = null;
+
 function updateReportData() {
     const { startDate, endDate } = getDateRange();
 
@@ -570,7 +589,7 @@ function updateReportData() {
     // CÁLCULO CORRETO - SOMA INVESTIDO E RETORNO, DEPOIS CALCULA O LUCRO
     const totalInvested = filteredEntries.reduce((sum, entry) => sum + (parseFloat(entry.invested) || 0), 0);
     const totalReturned = filteredEntries.reduce((sum, entry) => sum + (parseFloat(entry.returned) || 0), 0);
-    const totalProfit = totalReturned - totalInvested; // ISSO É O QUE IMPORTA!
+    const totalProfit = totalReturned - totalInvested;
 
     document.getElementById('summaryInvested').textContent = formatCurrency(totalInvested);
     document.getElementById('summaryRevenue').textContent = formatCurrency(totalReturned);
@@ -593,6 +612,114 @@ function updateReportData() {
     document.getElementById('currentPeriod').textContent = periodLabel;
 
     renderFilteredFinanceTable(filteredEntries);
+    
+    // ATUALIZA O GRÁFICO DE PEDIDOS ENTREGUES
+    renderDeliveryChart(startDate, endDate);
+}
+
+// NOVA FUNÇÃO: RENDERIZA O GRÁFICO DE PEDIDOS ENTREGUES POR DIA
+async function renderDeliveryChart(startDate, endDate) {
+    try {
+        // Busca todos os pedidos entregues no período
+        const snapshot = await pedidosCollection
+            .where('status', '==', 'delivered')
+            .get();
+        
+        // Agrupa por dia
+        const deliveriesByDay = {};
+        
+        snapshot.forEach(doc => {
+            const order = doc.data();
+            const createdAt = order.created_at;
+            if (!createdAt) return;
+            
+            const orderDate = new Date(createdAt);
+            // Verifica se o pedido está dentro do período selecionado
+            if (orderDate >= startDate && orderDate <= endDate) {
+                const dayKey = orderDate.toISOString().split('T')[0];
+                deliveriesByDay[dayKey] = (deliveriesByDay[dayKey] || 0) + 1;
+            }
+        });
+        
+        // Ordena as datas
+        const sortedDays = Object.keys(deliveriesByDay).sort();
+        const labels = sortedDays.map(day => {
+            const d = new Date(day);
+            return `${d.getDate()}/${d.getMonth() + 1}`;
+        });
+        const data = sortedDays.map(day => deliveriesByDay[day]);
+        
+        // Se não houver dados, mostra mensagem amigável
+        if (data.length === 0) {
+            const ctx = document.getElementById('deliveryChart')?.getContext('2d');
+            if (ctx && deliveryChart) {
+                deliveryChart.destroy();
+                deliveryChart = null;
+            }
+            return;
+        }
+        
+        // Renderiza ou atualiza o gráfico
+        const ctx = document.getElementById('deliveryChart')?.getContext('2d');
+        if (!ctx) return;
+        
+        if (deliveryChart) {
+            deliveryChart.destroy();
+        }
+        
+        deliveryChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Pedidos Entregues',
+                    data: data,
+                    backgroundColor: 'rgba(212, 175, 55, 0.7)',
+                    borderColor: 'rgba(212, 175, 55, 1)',
+                    borderWidth: 1,
+                    borderRadius: 8,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.raw} pedido(s) entregue(s)`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            precision: 0
+                        },
+                        title: {
+                            display: true,
+                            text: 'Quantidade de Pedidos'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Dia'
+                        }
+                    }
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('Erro ao renderizar gráfico:', error);
+    }
 }
 
 function renderFilteredFinanceTable(entries) {
@@ -681,18 +808,8 @@ async function saveEditFinanceEntry() {
         return;
     }
 
-    const profit = returned - invested;
-
     try {
-        const { error } = await supabaseClient
-            .from('finance_entries')
-            .update({ date, invested, returned, profit })
-            .eq('id', currentFinanceEditId);
-
-        if (error) {
-            showToast('❌ Erro ao salvar: ' + error.message, 'error');
-            return;
-        }
+        await financeEntriesCollection.doc(currentFinanceEditId).update({ date, invested, returned });
 
         closeEditFinanceModal();
         showToast('✅ Registro atualizado com sucesso!', 'success');
@@ -701,7 +818,7 @@ async function saveEditFinanceEntry() {
         updateReportData();
 
     } catch (err) {
-        showToast('❌ Erro de conexão', 'error');
+        showToast('❌ Erro de conexão: ' + err.message, 'error');
         console.error(err);
     }
 }
@@ -712,15 +829,7 @@ async function deleteFinanceEntry(entryId) {
     }
 
     try {
-        const { error } = await supabaseClient
-            .from('finance_entries')
-            .delete()
-            .eq('id', entryId);
-
-        if (error) {
-            showToast('❌ Erro ao excluir: ' + error.message, 'error');
-            return;
-        }
+        await financeEntriesCollection.doc(entryId).delete();
 
         showToast('✅ Registro excluído com sucesso!', 'success');
 
@@ -728,7 +837,7 @@ async function deleteFinanceEntry(entryId) {
         updateReportData();
 
     } catch (err) {
-        showToast('❌ Erro de conexão', 'error');
+        showToast('❌ Erro de conexão: ' + err.message, 'error');
         console.error(err);
     }
 }
@@ -746,6 +855,7 @@ async function handleExtract() {
     document.getElementById('extPayment').value = extracted.paymentMethod || '';
     document.getElementById('extValue').value = extracted.totalValue || '';
     document.getElementById('extObservations').value = '';
+    document.getElementById('extDeliveryTime').value = '';
 
     if (extracted.locationUrl) {
         document.getElementById('extLocation').value = extracted.locationUrl;
@@ -919,51 +1029,82 @@ async function handleGenerateLink() {
     if (!clientPhone || !products) { showToast('⚠️ Preencha Telefone e Produtos', 'warning'); return; }
 
     try {
-        const { data, error: insertError } = await supabaseClient
-            .from('pedidos')
-            .insert([{
-                client_name: clientName,
-                client_phone: formatPhoneForDB(clientPhone),
-                products: products,
-                payment_method: paymentMethod,
-                total_value: totalValue,
-                observations: observations,
-                location_url: locationUrl,
-                entregador_responsavel: DELIVERERS[selectedDeliverer]?.name || '',
-                status: 'pending',
-                created_at: new Date().toISOString()
-            }])
-            .select();
+        // Salva o pedido no banco (para manter o histórico)
+        const novoPedido = {
+            client_name: clientName,
+            client_phone: formatPhoneForDB(clientPhone),
+            products: products,
+            payment_method: paymentMethod,
+            total_value: totalValue,
+            observations: observations,
+            location_url: locationUrl,
+            entregador_responsavel: DELIVERERS[selectedDeliverer]?.name || '',
+            status: 'pending',
+            created_at: new Date().toISOString()
+        };
 
-        if (insertError) {
-            console.error('❌ Erro ao salvar:', insertError);
-            showToast('❌ Erro: ' + insertError.message, 'error');
-            return;
+        const docRef = await pedidosCollection.add(novoPedido);
+        const pedidoId = docRef.id;
+
+        // ========== LINK DIRETO DO WHATSAPP PARA O CLIENTE ==========
+        const delivererName = DELIVERERS[selectedDeliverer]?.name || 'Entregador';
+        
+        // Captura o horário da entrega
+        const deliveryTime = document.getElementById('extDeliveryTime')?.value.trim() || 'A combinar';
+        
+        // Monta a mensagem que será enviada para o cliente
+        let message = `Olá, sou ${delivererName} da Etevalda Joias.\n\n`;
+        message += `📦 Seu pedido:\n${products}\n\n`;
+        
+        if (totalValue && totalValue.trim() !== '') {
+            message += `💰 Valor total: ${totalValue}\n\n`;
         }
-
-        const novoPedido = data?.[0];
-        if (!novoPedido || !novoPedido.id) {
-            showToast('⚠️ Pedido salvo, mas ID não capturado', 'warning');
-            return;
+        
+        if (deliveryTime && deliveryTime.trim() !== '') {
+            message += `⏰ Horário da entrega: ${deliveryTime}\n\n`;
         }
-
-        const routeLink = `${BASE_URL}/?id=${novoPedido.id}`;
-        const textToCopy = `👇 Entrega\nCliente: ${clientName}\n${routeLink}`;
+        
+        if (observations && observations.trim() !== '') {
+            message += `📝 Observações importantes:\n${observations}\n\n`;
+        }
+        
+        if (locationUrl && locationUrl.trim() !== '') {
+            message += `📍 Localização para entrega:\n${locationUrl}\n\n`;
+        }
+        
+        message += `Já estou com sua localização e saindo para entrega! 🚀`;
+        
+        // Limpa o telefone do cliente
+        const cleanClientPhone = clientPhone.replace(/\D/g, '');
+        const fullClientPhone = cleanClientPhone.startsWith('55') ? cleanClientPhone : '55' + cleanClientPhone;
+        
+        // Link direto do WhatsApp para o CLIENTE
+        const directWhatsAppLink = `https://wa.me/${fullClientPhone}?text=${encodeURIComponent(message)}`;
+        
+        // Formata o valor para exibição no texto do entregador
+        const valorDisplay = totalValue && totalValue.trim() !== '' ? totalValue : 'Não informado';
+        const horarioDisplay = deliveryTime && deliveryTime.trim() !== '' ? deliveryTime : 'A combinar';
+        const localDisplay = locationUrl && locationUrl.trim() !== '' ? locationUrl : 'Não informado';
+        
+        // Texto que será enviado ao ENTREGADOR (formato profissional)
+        const textToCopy = `👇 ENTREGA CLIENTE: ${clientName}\n💰 VALOR DO PEDIDO: ${valorDisplay}\n⏰ HORÁRIO DA ENTREGA: ${horarioDisplay}\n\n📍 LOCALIZAÇÃO: \n${localDisplay}\n\n${directWhatsAppLink}`;
 
         document.getElementById('linkOutput').textContent = textToCopy;
         document.getElementById('generatedLinkSection').classList.remove('hidden');
 
-        const whatsappUrl = `https://api.whatsapp.com/send?phone=55${selectedDeliverer}&text=${encodeURIComponent(textToCopy)}`;
-        window.open(whatsappUrl, '_blank');
+        // Abre WhatsApp do ENTREGADOR com o link direto
+        const delivererPhone = selectedDeliverer;
+        const whatsappToDeliverer = `https://api.whatsapp.com/send?phone=55${delivererPhone}&text=${encodeURIComponent(textToCopy)}`;
+        window.open(whatsappToDeliverer, '_blank');
 
         document.getElementById('extractConversation').value = '';
         document.getElementById('extractedFields').classList.add('hidden');
-        showToast('✅ Link gerado e WhatsApp aberto!', 'success');
+        showToast('✅ Link direto do WhatsApp gerado!', 'success');
         await loadData();
 
     } catch (err) {
         console.error('💥 Erro crítico:', err);
-        showToast('❌ Falha na conexão', 'error');
+        showToast('❌ Falha na conexão: ' + err.message, 'error');
     }
 }
 
@@ -1014,7 +1155,7 @@ async function savePendingPurchase() {
     if (!clientName || !clientPhone || !purchaseDate) { showToast('⚠️ Preencha Nome, Telefone e Data', 'warning'); return; }
 
     try {
-        const { error } = await supabaseClient.from('pending_purchases').insert([{
+        await pendingPurchasesCollection.add({
             client_name: clientName,
             client_phone: formatPhoneForDB(clientPhone),
             purchase_date: purchaseDate,
@@ -1022,13 +1163,15 @@ async function savePendingPurchase() {
             conversation_summary: conversationSummary,
             status: 'pending',
             created_at: new Date().toISOString()
-        }]);
-        if (error) { showToast('❌ Erro: ' + error.message, 'error'); return; }
+        });
         document.getElementById('pendingConversation').value = '';
         document.getElementById('pendingExtractedFields').classList.add('hidden');
         showToast('✅ Pendente salvo!', 'success');
         await loadData();
-    } catch (err) { showToast('❌ Falha na conexão', 'error'); console.error(err); }
+    } catch (err) { 
+        showToast('❌ Falha na conexão: ' + err.message, 'error'); 
+        console.error(err); 
+    }
 }
 
 // ✅ FUNÇÃO EDIT PENDING CORRIGIDA
@@ -1082,31 +1225,26 @@ async function saveEditPending() {
     };
     if (!data.client_name || !data.client_phone || !data.purchase_date) { showToast('⚠️ Preencha Nome, Telefone e Data', 'warning'); return; }
     try {
-        const { error } = await supabaseClient.from('pending_purchases').update(data).eq('id', currentEditPendingId);
-        if (error) { showToast('❌ Erro: ' + error.message, 'error'); return; }
+        await pendingPurchasesCollection.doc(currentEditPendingId).update(data);
         closeEditPendingModal();
         showToast('✅ Pendente atualizado!', 'success');
         await loadData();
-    } catch (err) { showToast('❌ Erro de conexão', 'error'); console.error(err); }
+    } catch (err) { 
+        showToast('❌ Erro de conexão: ' + err.message, 'error'); 
+        console.error(err); 
+    }
 }
 
 // ✅ FUNÇÃO PARA MARCAR COMO COMPLETED/CONCLUÍDO
 async function markPendingCompleted(id) {
     if (!confirm('Marcar como concluído?')) return;
     try {
-        const { error } = await supabaseClient
-            .from('pending_purchases')
-            .update({ status: 'completed' })
-            .eq('id', id);
-        if (error) {
-            showToast('❌ Erro ao atualizar: ' + error.message, 'error');
-            return;
-        }
+        await pendingPurchasesCollection.doc(id).update({ status: 'completed' });
         showToast('✅ Pendente marcado como concluído!', 'success');
         await loadData();
         checkPendingAlerts(); // Atualiza o alerta
     } catch (err) {
-        showToast('❌ Falha', 'error');
+        showToast('❌ Falha: ' + err.message, 'error');
     }
 }
 
@@ -1158,12 +1296,14 @@ async function saveEditOrder() {
     };
     if (!data.client_name || !data.client_phone || !data.products) { showToast('⚠️ Preencha Nome, Telefone e Produtos', 'warning'); return; }
     try {
-        const { error } = await supabaseClient.from('pedidos').update(data).eq('id', currentEditId);
-        if (error) { showToast('❌ Erro: ' + error.message, 'error'); return; }
+        await pedidosCollection.doc(currentEditId).update(data);
         closeEditModal();
         showToast('✅ Alterações salvas!', 'success');
         await loadData();
-    } catch (err) { showToast('❌ Erro de conexão', 'error'); console.error(err); }
+    } catch (err) { 
+        showToast('❌ Erro de conexão: ' + err.message, 'error'); 
+        console.error(err); 
+    }
 }
 
 // ==================== UTILITÁRIOS ====================
@@ -1268,15 +1408,8 @@ async function addFinanceEntry() {
     }
 
     try {
-        // Salva no banco
-        const { error } = await supabaseClient
-            .from('finance_entries')
-            .insert([{ date, invested, returned }]);
-
-        if (error) {
-            showToast('❌ Erro: ' + error.message, 'error');
-            return;
-        }
+        // Salva no banco Firebase
+        await financeEntriesCollection.add({ date, invested, returned });
 
         // RECARREGA OS DADOS E ATUALIZA A TELA
         await loadFinanceEntries();
@@ -1289,7 +1422,7 @@ async function addFinanceEntry() {
         
         showToast('✅ Registro salvo e relatório atualizado!', 'success');
     } catch (err) {
-        showToast('❌ Erro de conexão', 'error');
+        showToast('❌ Erro de conexão: ' + err.message, 'error');
         console.error(err);
     }
 }
