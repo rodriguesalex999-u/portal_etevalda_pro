@@ -789,6 +789,9 @@
     .badge-en-route { background: #dbeafe; color: #1e40af; }
     .badge-delivered { background: #d1fae5; color: #065f46; }
     .badge-cancelled { background: #fee2e2; color: #991b1b; }
+    .badge-receivable { background: #fef3c7; color: #92400e; }
+    .badge-receivable-urgent { background: #f59e0b; color: white; }
+    .order-item.receivable-item { border-left: 3px solid #f59e0b; }
     
     .search-box { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .search-box input { flex: 1; min-width: 200px; }

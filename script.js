@@ -19,6 +19,7 @@ const db = firebase.firestore();
 const pedidosCollection = db.collection('pedidos');
 const pendingPurchasesCollection = db.collection('pending_purchases');
 const financeEntriesCollection = db.collection('finance_entries');
+const receivablesCollection = db.collection('receivables');
 
 // ✅ ENTREGADORES ATUALIZADOS
 const DELIVERERS = {
@@ -28,13 +29,15 @@ const DELIVERERS = {
     '5565996328797': { name: 'Flavia', phone: '5565996328797' },
     '5565992215786': { name: 'Kinho', phone: '5565992215786' },
     '556699034031': { name: 'Deyvid', phone: '556699034031' },
+    '5566992481370': { name: 'Paulo', phone: '5566992481370' },
 };
 
-let orders = [], pendingPurchases = [], financeEntries = [];
+let orders = [], pendingPurchases = [], financeEntries = [], receivables = [];
 let reportUnlocked = false, currentEditId = null, currentDeleteId = null;
 let currentFinanceEditId = null;
 let currentDeleteTable = null;
 let currentEditPendingId = null;
+let currentEditReceivableId = null;
 
 // ✅ VARIÁVEIS DE FILTRO DO RELATÓRIO
 let currentFilterType = 'current';
@@ -207,6 +210,7 @@ async function loadData() {
         await loadOrders();
         await loadPendingPurchases();
         await loadFinanceEntries();
+        await loadReceivables();
         renderAllLists();
         updateStats();
         checkPendingAlerts(); // ✅ Verifica alertas ao carregar dados
@@ -251,6 +255,19 @@ async function loadFinanceEntries() {
     } catch (error) {
         console.error('Erro financeiro:', error);
         showToast('⚠️ Erro ao carregar financeiro', 'error');
+    }
+}
+
+async function loadReceivables() {
+    try {
+        const snapshot = await receivablesCollection.orderBy('receive_date', 'asc').get();
+        receivables = [];
+        snapshot.forEach(doc => {
+            receivables.push({ id: doc.id, ...doc.data() });
+        });
+    } catch (error) {
+        console.error('Erro a receber:', error);
+        showToast('⚠️ Erro ao carregar clientes a receber', 'error');
     }
 }
 
@@ -309,26 +326,33 @@ function checkPendingAlerts() {
 
     const duePendings = pendingPurchases.filter(p => {
         if (p.status !== 'pending') return false;
-
-        // Verifica se a data já chegou ou passou
         const purchaseDate = p.purchase_date;
-        if (purchaseDate < today) return true; // Data passada
-
-        // Se for hoje, verifica o horário
-        if (purchaseDate === today && p.purchase_time) {
-            return p.purchase_time <= currentTime; // Horário já passou ou é agora
-        }
-
-        return purchaseDate === today && !p.purchase_time; // Hoje sem horário definido
+        if (purchaseDate < today) return true;
+        if (purchaseDate === today && p.purchase_time) return p.purchase_time <= currentTime;
+        return purchaseDate === today && !p.purchase_time;
     });
 
-    console.log('🔔 Pendentes com alerta:', duePendings.length);
+    const dueReceivables = receivables.filter(r => {
+        if (r.status !== 'pending') return false;
+        const receiveDate = r.receive_date;
+        if (receiveDate < today) return true;
+        if (receiveDate === today && r.receive_time) return r.receive_time <= currentTime;
+        return receiveDate === today && !r.receive_time;
+    });
+
+    console.log('🔔 Pendentes com alerta:', duePendings.length, '| A receber:', dueReceivables.length);
 
     const alertBanner = document.getElementById('pendingAlertBanner');
-    const alertCount = document.getElementById('pendingAlertCount');
+    const alertBannerText = document.getElementById('alertBannerText');
+    const totalAlerts = duePendings.length + dueReceivables.length;
 
-    if (duePendings.length > 0) {
-        alertCount.textContent = duePendings.length;
+    if (totalAlerts > 0) {
+        let parts = [];
+        if (duePendings.length > 0) parts.push(`🔴 ${duePendings.length} pendente(s) de compra`);
+        if (dueReceivables.length > 0) parts.push(`💰 ${dueReceivables.length} cliente(s) a receber`);
+        if (alertBannerText) {
+            alertBannerText.innerHTML = `<span id="pendingAlertCount">${totalAlerts}</span> alerta(s): ${parts.join(' | ')} — Ação necessária AGORA!`;
+        }
         alertBanner.classList.remove('hidden');
     } else {
         alertBanner.classList.add('hidden');
@@ -336,17 +360,46 @@ function checkPendingAlerts() {
 }
 
 function scrollToPendingSection() {
-    const pendingSection = document.getElementById('pendingAccordionContent');
-    if (pendingSection) {
-        if (pendingSection.classList.contains('hidden')) {
-            togglePendingAccordion();
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const hasDuePendings = pendingPurchases.some(p => {
+        if (p.status !== 'pending') return false;
+        if (p.purchase_date < today) return true;
+        if (p.purchase_date === today && p.purchase_time) return p.purchase_time <= currentTime;
+        return p.purchase_date === today && !p.purchase_time;
+    });
+    const hasDueReceivables = receivables.some(r => {
+        if (r.status !== 'pending') return false;
+        if (r.receive_date < today) return true;
+        if (r.receive_date === today && r.receive_time) return r.receive_time <= currentTime;
+        return r.receive_date === today && !r.receive_time;
+    });
+    if (hasDuePendings) {
+        const pendingSection = document.getElementById('pendingAccordionContent');
+        if (pendingSection) {
+            if (pendingSection.classList.contains('hidden')) togglePendingAccordion();
+            pendingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-        pendingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    if (hasDueReceivables) {
+        const receivableSection = document.getElementById('receivableAccordionContent');
+        if (receivableSection) {
+            if (receivableSection.classList.contains('hidden')) toggleReceivableAccordion();
+            receivableSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+    if (!hasDuePendings && !hasDueReceivables) {
+        const pendingSection = document.getElementById('pendingAccordionContent');
+        if (pendingSection) {
+            if (pendingSection.classList.contains('hidden')) togglePendingAccordion();
+            pendingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 }
 
 // ==================== RENDERING UNIFICADO ====================
-function renderAllLists() { renderActiveList(); renderHistoryList(); renderPendingList(); }
+function renderAllLists() { renderActiveList(); renderHistoryList(); renderPendingList(); renderReceivablesList(); }
 
 function getActiveOrders() {
     return orders.filter(o => ['pending', 'en_route'].includes(o.status));
@@ -462,6 +515,155 @@ function renderPendingList() {
     }).join('');
 }
 
+// ==================== CLIENTES A RECEBER ====================
+function toggleReceivableAccordion() {
+    const content = document.getElementById('receivableAccordionContent'),
+        icon = document.getElementById('receivableAccordionIcon');
+    if (!content) return;
+    const isHidden = content.classList.contains('hidden');
+    if (isHidden) {
+        content.classList.remove('hidden');
+        if (icon) { icon.classList.remove('fa-chevron-down'); icon.classList.add('fa-chevron-up'); }
+    } else {
+        content.classList.add('hidden');
+        if (icon) { icon.classList.remove('fa-chevron-up'); icon.classList.add('fa-chevron-down'); }
+    }
+}
+
+function renderReceivablesList() {
+    const container = document.getElementById('receivableList');
+    if (!container) return;
+    const activeReceivables = receivables.filter(r => r.status === 'pending');
+    if (activeReceivables.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-hand-holding-dollar"></i><p>Nenhum cliente a receber cadastrado</p></div>';
+        return;
+    }
+    container.innerHTML = activeReceivables.map(r => {
+        const today = new Date().toISOString().split('T')[0];
+        const isToday = r.receive_date === today;
+        const isPast = r.receive_date < today;
+        let urgencyBadge = '';
+        if (isToday) urgencyBadge = '<span class="badge badge-receivable-urgent">💰 RECEBER HOJE!</span>';
+        else if (isPast) urgencyBadge = '<span class="badge badge-cancelled">⏰ ATRASADO!</span>';
+        else urgencyBadge = '<span class="badge badge-receivable">💰 A Receber</span>';
+        const whatsappLink = generateWhatsAppLink(
+            r.client_phone,
+            r.client_name,
+            `Oi ${r.client_name}! 😊 Ficamos combinados que hoje você iria efetuar o pagamento pendente. Estamos aguardando seu pagamento! 🙏`
+        );
+        return `<div class="order-item receivable-item">
+            <div class="order-item-header">
+                <div>
+                    <div class="order-client">${escapeHtml(r.client_name)}</div>
+                    <a href="${whatsappLink}" target="_blank" class="order-phone"><i class="fab fa-whatsapp"></i> ${formatPhone(r.client_phone)}</a>
+                </div>
+                ${urgencyBadge}
+            </div>
+            <div class="order-meta">
+                <span><i class="fas fa-calendar"></i> ${formatDateBR(r.receive_date)}</span>
+                ${r.receive_time ? `<span><i class="fas fa-clock"></i> ${r.receive_time}</span>` : '<span><i class="fas fa-clock"></i> Horário não definido</span>'}
+            </div>
+            ${r.observation ? `<div class="order-products" style="color:#92400e;background:#fef3c7;padding:0.5rem;border-radius:6px;border-left:3px solid #f59e0b;">${escapeHtml(r.observation)}</div>` : ''}
+            <div class="order-actions">
+                <button class="btn btn-outline btn-sm" onclick="editReceivable('${r.id}')">✏️ Editar</button>
+                <button class="btn btn-danger btn-sm" onclick="confirmDeleteReceivable('${r.id}')">🗑️ Excluir</button>
+                <button class="btn btn-success btn-sm" onclick="markReceivableCompleted('${r.id}')">✅ Recebido!</button>
+            </div>
+            ${isPast ? `<div style="margin-top:0.5rem;padding:0.5rem;background:#fee2e2;border-radius:6px;font-size:0.75rem;color:#991b1b;"><i class="fas fa-exclamation-triangle"></i> ⚠️ Pagamento em atraso! Clique em "✏️ Editar" para reagendar.</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+async function saveReceivable() {
+    const clientName = document.getElementById('receivableClientName').value.trim();
+    const clientPhone = document.getElementById('receivableClientPhone').value.trim();
+    const receiveDate = document.getElementById('receivableDate').value;
+    const receiveTime = document.getElementById('receivableTime').value;
+    const observation = document.getElementById('receivableObservation').value.trim();
+    if (!clientName || !clientPhone || !receiveDate) { showToast('⚠️ Preencha Nome, Telefone e Data', 'warning'); return; }
+    try {
+        await receivablesCollection.add({
+            client_name: clientName,
+            client_phone: formatPhoneForDB(clientPhone),
+            receive_date: receiveDate,
+            receive_time: receiveTime,
+            observation: observation,
+            status: 'pending',
+            created_at: new Date().toISOString()
+        });
+        document.getElementById('receivableClientName').value = '';
+        document.getElementById('receivableClientPhone').value = '';
+        document.getElementById('receivableObservation').value = '';
+        document.getElementById('receivableTime').value = '';
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('receivableDate').value = today;
+        showToast('✅ Cliente a receber salvo!', 'success');
+        await loadData();
+    } catch (err) {
+        showToast('❌ Falha na conexão: ' + err.message, 'error');
+        console.error(err);
+    }
+}
+
+function editReceivable(id) {
+    const r = receivables.find(item => item.id === id);
+    if (!r) { showToast('❌ Registro não encontrado', 'error'); return; }
+    currentEditReceivableId = id;
+    document.getElementById('editReceivableId').value = id;
+    document.getElementById('editReceivableClientName').value = r.client_name || '';
+    document.getElementById('editReceivableClientPhone').value = r.client_phone || '';
+    document.getElementById('editReceivableDate').value = r.receive_date || '';
+    document.getElementById('editReceivableTime').value = r.receive_time || '';
+    document.getElementById('editReceivableObservation').value = r.observation || '';
+    const modal = document.getElementById('editReceivableModal');
+    if (modal) { modal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+}
+
+function closeEditReceivableModal() {
+    document.getElementById('editReceivableModal').classList.add('hidden');
+    document.body.style.overflow = '';
+    currentEditReceivableId = null;
+}
+
+async function saveEditReceivable() {
+    if (!currentEditReceivableId) return;
+    const data = {
+        client_name: document.getElementById('editReceivableClientName').value.trim(),
+        client_phone: formatPhoneForDB(document.getElementById('editReceivableClientPhone').value.trim()),
+        receive_date: document.getElementById('editReceivableDate').value,
+        receive_time: document.getElementById('editReceivableTime').value,
+        observation: document.getElementById('editReceivableObservation').value.trim(),
+    };
+    if (!data.client_name || !data.client_phone || !data.receive_date) { showToast('⚠️ Preencha Nome, Telefone e Data', 'warning'); return; }
+    try {
+        await receivablesCollection.doc(currentEditReceivableId).update(data);
+        closeEditReceivableModal();
+        showToast('✅ Cliente a receber atualizado!', 'success');
+        await loadData();
+    } catch (err) {
+        showToast('❌ Erro de conexão: ' + err.message, 'error');
+        console.error(err);
+    }
+}
+
+function confirmDeleteReceivable(id) {
+    currentDeleteId = id;
+    currentDeleteTable = 'receivables';
+    document.getElementById('deleteModal').classList.remove('hidden');
+}
+
+async function markReceivableCompleted(id) {
+    if (!confirm('Confirmar recebimento? O registro será marcado como concluído.')) return;
+    try {
+        await receivablesCollection.doc(id).update({ status: 'completed' });
+        showToast('✅ Recebimento confirmado!', 'success');
+        await loadData();
+        checkPendingAlerts();
+    } catch (err) {
+        showToast('❌ Falha: ' + err.message, 'error');
+    }
+}
+
 // ==================== EXCLUSÃO ====================
 function confirmDelete(orderId) {
     currentDeleteId = orderId;
@@ -489,6 +691,8 @@ async function executeDelete() {
             await pedidosCollection.doc(currentDeleteId).delete();
         } else if (table === 'pending_purchases') {
             await pendingPurchasesCollection.doc(currentDeleteId).delete();
+        } else if (table === 'receivables') {
+            await receivablesCollection.doc(currentDeleteId).delete();
         }
         closeDeleteModal();
         showToast('🗑️ Registro excluído com sucesso!', 'success');
@@ -506,6 +710,7 @@ const MODAL_CLOSE_MAP = {
     'editOrderModal': closeEditModal,
     'editPendingModal': closeEditPendingModal,
     'editFinanceModal': closeEditFinanceModal,
+    'editReceivableModal': closeEditReceivableModal,
     'deleteModal': closeDeleteModal
 };
 
@@ -1566,4 +1771,5 @@ function setDefaultDates() {
     const financeDate = document.getElementById('financeDate'); if (financeDate) financeDate.value = today;
     const pendingDate = document.getElementById('pendingPurchaseDate'); if (pendingDate) pendingDate.value = today;
     const pendingTime = document.getElementById('pendingPurchaseTime'); if (pendingTime) pendingTime.value = '';
+    const receivableDate = document.getElementById('receivableDate'); if (receivableDate) receivableDate.value = today;
 }

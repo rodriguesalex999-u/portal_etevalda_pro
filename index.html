@@ -38,7 +38,7 @@
     <div id="pendingAlertBanner" class="alert-banner blink-alert hidden">
       <div class="alert-content">
         <i class="fas fa-bell"></i>
-        <span class="alert-text">🔴 <span id="pendingAlertCount">0</span> cliente(s) aguardando contato AGORA!</span>
+        <span class="alert-text" id="alertBannerText">🔴 <span id="pendingAlertCount">0</span> cliente(s) aguardando contato AGORA!</span>
       </div>
       <div class="alert-actions">
         <button class="btn btn-danger btn-sm" onclick="scrollToPendingSection()">
@@ -73,6 +73,7 @@
             <option value="5565996328797">Flavia - (65) 99632-8797</option>
             <option value="5565992215786">Kinho - (65) 99221-5786</option>
             <option value="556699034031">Deyvid - (66) 9903-4031</option>
+            <option value="5566992481370">Paulo - (66) 99248-1370</option>
           </select>
         </div>
         <div class="form-group" style="margin-bottom:1rem;">
@@ -152,7 +153,26 @@
         </div>
       </div>
 
-      <!-- 📦 PEDIDOS ATIVOS (pending + en_route) -->
+      <!-- � CLIENTES A RECEBER -->
+      <div class="card" id="receivablesCard">
+        <div class="card-header" style="cursor:pointer;" onclick="toggleReceivableAccordion()">
+          <h2 class="card-title"><i class="fas fa-hand-holding-dollar"></i> 💰 Clientes a Receber</h2>
+          <button type="button" class="btn btn-secondary btn-sm"><i id="receivableAccordionIcon" class="fas fa-chevron-down"></i></button>
+        </div>
+        <div id="receivableAccordionContent" class="hidden">
+          <div class="form-grid" style="margin-bottom:0.75rem;">
+            <div class="form-group"><label>Nome do Cliente *</label><input type="text" id="receivableClientName" placeholder="Nome completo..."></div>
+            <div class="form-group"><label>Telefone (WhatsApp) *</label><input type="tel" id="receivableClientPhone" placeholder="Ex: 66992481370"></div>
+            <div class="form-group"><label>Data do Recebimento *</label><input type="date" id="receivableDate"></div>
+            <div class="form-group"><label>Horário (opcional)</label><input type="time" id="receivableTime"></div>
+          </div>
+          <div class="form-group" style="margin-bottom:1rem;"><label>📝 Observações (o que aconteceu?)</label><textarea id="receivableObservation" placeholder="Descreva a situação, valor pendente, o que foi combinado..." style="min-height:80px;"></textarea></div>
+          <button class="btn btn-success btn-sm btn-block" onclick="saveReceivable()"><i class="fas fa-save"></i> Salvar Cliente a Receber</button>
+          <div id="receivableList" class="order-list" style="margin-top:1rem;"></div>
+        </div>
+      </div>
+
+      <!-- �📦 PEDIDOS ATIVOS (pending + en_route) -->
       <div class="card">
         <div class="card-header"><h2 class="card-title"><i class="fas fa-box-open"></i> 📦 Pedidos Ativos</h2><span class="badge badge-pending" id="activeCount">0 pedidos</span></div>
         <div class="search-box"><input type="text" id="activeSearch" placeholder="🔍 Buscar por nome ou telefone..." onkeyup="searchActiveOrders()"></div>
@@ -357,6 +377,27 @@
     <div class="modal-actions">
       <button class="btn btn-success btn-block" onclick="saveEditFinanceEntry()">💾 Salvar Alterações</button>
       <button class="btn btn-secondary btn-block" onclick="closeEditFinanceModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DE EDIÇÃO DE CLIENTE A RECEBER -->
+<div id="editReceivableModal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header"><h3>✏️ Editar Cliente a Receber</h3><button class="modal-close" onclick="closeEditReceivableModal()">&times;</button></div>
+    <input type="hidden" id="editReceivableId">
+    <div class="modal-form-grid">
+      <div class="form-group"><label>Nome do Cliente *</label><input type="text" id="editReceivableClientName"></div>
+      <div class="form-group"><label>Telefone (WhatsApp) *</label><input type="tel" id="editReceivableClientPhone"></div>
+    </div>
+    <div class="modal-form-grid">
+      <div class="form-group"><label>Data do Recebimento *</label><input type="date" id="editReceivableDate"></div>
+      <div class="form-group"><label>Horário (opcional)</label><input type="time" id="editReceivableTime"></div>
+    </div>
+    <div class="form-group"><label>📝 Observações</label><textarea id="editReceivableObservation" style="min-height:80px;"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-success btn-block" onclick="saveEditReceivable()">💾 Salvar Alterações</button>
+      <button class="btn btn-secondary btn-block" onclick="closeEditReceivableModal()">Cancelar</button>
     </div>
   </div>
 </div>
