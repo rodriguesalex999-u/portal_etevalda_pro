@@ -423,29 +423,41 @@ function renderPendingList() {
         container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>Nenhum pendente cadastrado</p></div>';
         return;
     }
-    container.innerHTML = pendingPurchases.map(p => {
-        let badgeHtml = '';
-        if (p.status === 'pending') badgeHtml = '<span class="badge badge-pending">📅 Pendente</span>';
-        else if (p.status === 'completed') badgeHtml = '<span class="badge badge-delivered">✅ Concluído</span>';
-        else badgeHtml = '<span class="badge badge-cancelled">❌ Cancelado</span>';
-
+    // Filtra apenas pendentes com status 'pending' para exibir
+    const activePendings = pendingPurchases.filter(p => p.status === 'pending');
+    if (activePendings.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle"></i><p>Todos os pendentes foram concluídos!</p></div>';
+        return;
+    }
+    container.innerHTML = activePendings.map(p => {
+        const today = new Date().toISOString().split('T')[0];
+        const isToday = p.purchase_date === today;
+        const isPast = p.purchase_date < today;
+        
+        let urgencyBadge = '';
+        if (isToday) urgencyBadge = '<span class="badge badge-en-route" style="background:#dc2626; color:white;">🔔 PARA HOJE!</span>';
+        else if (isPast) urgencyBadge = '<span class="badge badge-cancelled">⏰ ATRASADO - Reagende!</span>';
+        
         const whatsappLink = generateWhatsAppLink(p.client_phone, p.client_name, 'Olá, ficamos combinado pra hoje. Estamos confirmando sua entrega!');
         return `<div class="order-item">
             <div class="order-item-header">
                 <div><div class="order-client">${escapeHtml(p.client_name)}</div>
                 <a href="${whatsappLink}" target="_blank" class="order-phone"><i class="fab fa-whatsapp"></i> ${formatPhone(p.client_phone)}</a></div>
-                ${badgeHtml}
+                ${urgencyBadge}
             </div>
             <div class="order-meta">
                 <span><i class="fas fa-calendar"></i> ${formatDateBR(p.purchase_date)}</span>
-                ${p.purchase_time ? `<span><i class="fas fa-clock"></i> ${p.purchase_time}</span>` : ''}
+                ${p.purchase_time ? `<span><i class="fas fa-clock"></i> ${p.purchase_time}</span>` : '<span><i class="fas fa-clock"></i> Horário não definido</span>'}
             </div>
             <div class="order-products">${escapeHtml(p.conversation_summary || '—')}</div>
             <div class="order-actions">
-                <button class="btn btn-outline btn-sm" onclick="editPending('${p.id}')">✏️ Editar</button>
+                <button class="btn btn-outline btn-sm" onclick="editPending('${p.id}')">✏️ Editar (Data/Horário)</button>
                 <button class="btn btn-danger btn-sm" onclick="confirmDeletePending('${p.id}')">🗑️ Excluir</button>
-                <button class="btn btn-success btn-sm" onclick="markPendingCompleted('${p.id}')">✅ Confirmar / Concluído</button>
+                <button class="btn btn-success btn-sm" onclick="markPendingCompleted('${p.id}')">✅ Já vendido / Concluir</button>
             </div>
+            ${isPast ? `<div style="margin-top:0.5rem; padding:0.5rem; background:#fee2e2; border-radius:6px; font-size:0.75rem; color:#991b1b;">
+                <i class="fas fa-exclamation-triangle"></i> ⚠️ Este pendente está com data vencida! Clique em "✏️ Editar" para reagendar.
+            </div>` : ''}
         </div>`;
     }).join('');
 }
@@ -855,7 +867,8 @@ async function handleExtract() {
     document.getElementById('extPayment').value = extracted.paymentMethod || '';
     document.getElementById('extValue').value = extracted.totalValue || '';
     document.getElementById('extObservations').value = '';
-    document.getElementById('extDeliveryTime').value = '';
+    document.getElementById('extDeliveryTime').value = extracted.deliveryTime || '';
+    document.getElementById('extNeighborhood').value = extracted.neighborhood || '';
 
     if (extracted.locationUrl) {
         document.getElementById('extLocation').value = extracted.locationUrl;
@@ -875,98 +888,182 @@ function extractEtevaldaOrder(conversation) {
         paymentMethod: '',
         totalValue: '',
         observations: '',
-        locationUrl: ''
+        locationUrl: '',
+        deliveryTime: ''
     };
 
+    // ========== 1. EXTRAIR LINK DE LOCALIZAÇÃO ==========
     const mapsPattern = /https?:\/\/(?:maps\.(?:google|app)\.goo\.gl|goo\.gl\/maps)[^\s]*/i;
     const mapsMatch = conversation.match(mapsPattern);
     if (mapsMatch) result.locationUrl = mapsMatch[0];
 
-    const phonePattern = /55\d{10,11}/g;
-    const phones = conversation.match(phonePattern);
-    if (phones && phones.length > 0) result.clientPhone = phones[phones.length - 1];
-
-    const SYSTEM_WORDS = ['fechado', 'whatsapp', 'inscrito', 'enviado', 'mensagem', 'áudio', 'video', 'imagem', 'documento', 'localização', 'contato', 'número', 'telefone', 'zap', 'oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'alianças', 'automação', 'etevalda', 'joias', 'total', 'pix', 'cartão', 'dinheiro'];
-
-    const pedidoNameMatch = conversation.match(/pedido\s+(.+?)(?:\n|$)/i);
-    if (pedidoNameMatch && pedidoNameMatch[1]) {
-        const name = pedidoNameMatch[1].trim();
-        if (!SYSTEM_WORDS.some(w => name.toLowerCase().includes(w)) && isLikelyHumanName(name)) {
-            result.clientName = name;
+    // ========== 2. EXTRAIR TELEFONE ==========
+    // Padrão 1: +55 43 9132-5844 ou +554391325844
+    let phoneMatch = conversation.match(/\+55\s*(\d{2})\s*(\d{4,5})-?(\d{4})/);
+    if (phoneMatch) {
+        result.clientPhone = '55' + phoneMatch[1] + phoneMatch[2] + phoneMatch[3];
+    } else {
+        // Padrão 2: 55\d{10,11}
+        const phonePattern = /55\d{10,11}/g;
+        const phones = conversation.match(phonePattern);
+        if (phones && phones.length > 0) {
+            result.clientPhone = phones[phones.length - 1];
+        } else {
+            // Padrão 3: Apenas números com 10-11 dígitos
+            const simplePhone = conversation.match(/\d{10,11}/);
+            if (simplePhone) result.clientPhone = '55' + simplePhone[0];
         }
     }
+    // Remove espaços e caracteres especiais
+    if (result.clientPhone) {
+        result.clientPhone = result.clientPhone.replace(/\D/g, '');
+    }
 
+    // ========== 3. EXTRAIR NOME DO CLIENTE ==========
+    // Padrão 1: ~NOME (WhatsApp direto)
+    const tildeMatch = conversation.match(/~([A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç]+)/);
+    if (tildeMatch && tildeMatch[1]) {
+        result.clientName = tildeMatch[1].trim();
+    }
+    
+    // Padrão 2: Primeiro Nome: (Manychat)
+    const firstNameMatch = conversation.match(/Primeiro Nome:\s*([A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+)/i);
+    if (firstNameMatch && firstNameMatch[1] && !result.clientName) {
+        result.clientName = firstNameMatch[1].trim();
+    }
+    
+    // Padrão 3: Detectar nome em linhas específicas
     if (!result.clientName) {
-        for (let i = 0; i < Math.min(5, lines.length); i++) {
+        for (let i = 0; i < Math.min(8, lines.length); i++) {
             const line = lines[i];
-            if (SYSTEM_WORDS.some(w => line.toLowerCase().includes(w))) continue;
-            const namePattern = /([A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+(?:\s+[A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+)+)/;
-            const match = line.match(namePattern);
-            if (match && match[1]) {
-                const name = match[1].trim();
-                if (!SYSTEM_WORDS.some(w => name.toLowerCase().includes(w)) && isLikelyHumanName(name)) {
-                    result.clientName = name;
-                    break;
-                }
-            }
-        }
-    }
-
-    let lastPedidoIndex = -1;
-    for (let i = lines.length - 1; i >= 0; i--) {
-        if (/^pedido\s*/i.test(lines[i])) {
-            lastPedidoIndex = i;
-            break;
-        }
-    }
-
-    if (lastPedidoIndex >= 0) {
-        let blockEnd = lines.length;
-        for (let i = lastPedidoIndex + 1; i < lines.length; i++) {
-            if (lines[i].includes('✅') || /total\s*[:\-]?/i.test(lines[i])) {
-                blockEnd = i + 1;
+            // Evita linhas com telefone, horários, etc.
+            if (line.match(/^\+55|\d{10,}|horas?|hrs?|hoje/i)) continue;
+            // Nome com 2-4 palavras, letras maiúsculas no início
+            const nameMatch = line.match(/^([A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+(?:\s+[A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+){0,2})$/);
+            if (nameMatch && nameMatch[1] && nameMatch[1].length > 2 && nameMatch[1].length < 30) {
+                result.clientName = nameMatch[1];
                 break;
             }
         }
-
-        const pedidoBlock = lines.slice(lastPedidoIndex, blockEnd);
-
-        const productLines = pedidoBlock.filter((line, index) => {
-            const lower = line.toLowerCase();
-            if (index === 0 && /^pedido/i.test(line)) return false;
-            if (/^pedido/i.test(line)) return false;
-            if (SYSTEM_WORDS.some(w => lower.includes(w) && !/r\$?\s*\d+/.test(line))) return false;
-            return /r\$?\s*\d+,\d{2}|:\s*r\$?\s*\d+,\d{2}/i.test(line) ||
-                (line.includes(':') && line.length < 100) ||
-                (/[a-zá-úãõç]+/i.test(line) && line.length > 3 && line.length < 80);
-        });
-
-        if (productLines.length > 0) {
-            result.products = productLines.join('\n');
-        }
-
-        const totalLine = pedidoBlock.find(l => /total\s*[:\-]?/i.test(l));
-        if (totalLine) {
-            const totalMatch = totalLine.match(/(\d{1,3}(?:\.\d{3})*,\d{2})/);
-            if (totalMatch) {
-                result.totalValue = totalMatch[1];
-            }
-        }
-        if (!result.totalValue) {
-            const checkLine = pedidoBlock.find(l => l.includes('✅'));
-            if (checkLine) {
-                const totalMatch = checkLine.match(/(\d{1,3}(?:\.\d{3})*,\d{2})/);
-                if (totalMatch) result.totalValue = totalMatch[1];
-            }
-        }
     }
 
+    // ========== 4. EXTRAIR PEDIDO/PRODUTOS ==========
+    // Procura pelo bloco do pedido (começa com "Pedido" ou "📦 Pedido")
+    let pedidoBlock = '';
+    let inPedido = false;
+    let pedidoLines = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (/^(Pedido|📦\s*Pedido|👇\s*PEDIDO)/i.test(line)) {
+            inPedido = true;
+            pedidoLines = [];
+            continue;
+        }
+        if (inPedido) {
+            if (/^(✅|Total|-----|---)/i.test(line) || (line.includes('Total') && line.includes(':'))) {
+                pedidoLines.push(line);
+                break;
+            }
+            pedidoLines.push(line);
+        }
+    }
+    
+    if (pedidoLines.length > 0) {
+        result.products = pedidoLines.join('\n');
+    }
+    
+    // Fallback: procura por linhas com valores monetários
     if (!result.products || result.products.trim() === '') {
         result.products = extractFallbackProducts(lines);
     }
 
-    result.observations = '';
+    // ========== 5. EXTRAIR VALOR TOTAL ==========
+    // Padrão: Total : 330.00 ou Total: R$ 330,00
+    const totalPatterns = [
+        /Total\s*:?\s*R?\$?\s*(\d{1,3}(?:[\.\s]\d{3})*[.,]\d{2})/i,
+        /TOTAL\s*:?\s*R?\$?\s*(\d{1,3}(?:[\.\s]\d{3})*[.,]\d{2})/i,
+        /Valor\s*Total\s*:?\s*R?\$?\s*(\d{1,3}(?:[\.\s]\d{3})*[.,]\d{2})/i,
+        /✅\s*Total\s*:?\s*R?\$?\s*(\d{1,3}(?:[\.\s]\d{3})*[.,]\d{2})/i
+    ];
+    
+    for (const pattern of totalPatterns) {
+        const match = conversation.match(pattern);
+        if (match && match[1]) {
+            result.totalValue = match[1].replace(/\s/g, '').replace('.', ',').replace(/,(\d{2})$/, ',$1');
+            break;
+        }
+    }
 
+    // ========== 6. EXTRAIR HORÁRIO DA ENTREGA ==========
+    const timePatterns = [
+        /(entregamos|entrega|saindo|chegando)\s+(hoje|amanhã)?\s*[\w\s]*(\d{1,2})\s*(?:h|:)?\s*(\d{0,2})?\s*(?:hrs|horas)?/i,
+        /(Hoje|Amanhã)\s+(?:as|às)\s*(\d{1,2})(?::(\d{2}))?\s*(?:h|hrs|horas)?/i,
+        /(\d{1,2}):(\d{2})\s*(?:h|hrs)/i,
+        /(entrega|saindo)\s+(\d{1,2})\s*(?:h|:)/i
+    ];
+    
+    for (const pattern of timePatterns) {
+        const match = conversation.match(pattern);
+        if (match) {
+            if (match[1] && (match[1].toLowerCase().includes('hoje') || match[1].toLowerCase().includes('amanhã'))) {
+                result.deliveryTime = match[1] + ' ' + (match[2] || '') + (match[3] ? ':' + match[3] : '') + 'h';
+            } else if (match[2]) {
+                result.deliveryTime = (match[1] || 'Hoje') + ' as ' + match[2] + (match[3] ? ':' + match[3] : '') + 'h';
+            } else if (match[1] && match[2]) {
+                result.deliveryTime = 'Hoje as ' + match[1] + ':' + match[2] + 'h';
+            }
+            if (result.deliveryTime) break;
+        }
+    }
+    
+    // Limpa o horário detectado
+    if (result.deliveryTime) {
+        result.deliveryTime = result.deliveryTime.replace(/\s+/g, ' ').trim();
+    }
+
+    // ========== 7. EXTRAIR OBSERVAÇÕES (ENDEREÇO) ==========
+    let observations = [];
+    
+    // Procura por padrões de endereço
+    const addressPatterns = [
+        /(?:Rua|Av|Avenida|Travessa|Alameda|Praça)\s+([^,\n]+)/i,
+        /(?:Número|nº|#)\s*:?\s*(\d+)/i,
+        /(?:Casa|Apto|Bloco|Quadra)\s*:?\s*([^,\n]+)/i,
+        /(?:Portão|Muro)\s*:?\s*([^,\n]+)/i,
+        /(?:Ponto de referência|Referência)\s*:?\s*([^,\n]+)/i,
+        /(?:Bairro)\s*:?\s*([^,\n]+)/i,
+        /(?:CEP)\s*:?\s*(\d{5}-?\d{3})/i
+    ];
+    
+    for (const pattern of addressPatterns) {
+        const match = conversation.match(pattern);
+        if (match && match[1]) {
+            observations.push(`${pattern.source.match(/[A-Za-zÀ-ú]+/)[0]}: ${match[1].trim()}`);
+        }
+    }
+    
+    // Procura por linha específica de endereço
+    for (const line of lines) {
+        if (line.toLowerCase().includes('localização pelo mapa') || 
+            line.toLowerCase().includes('nome da rua') ||
+            line.toLowerCase().includes('número da casa')) {
+            // Pega as próximas linhas
+            const idx = lines.indexOf(line);
+            for (let i = idx + 1; i < Math.min(idx + 6, lines.length); i++) {
+                if (lines[i] && !lines[i].match(/^\d{1,2}:\d{2}/) && lines[i].length > 3) {
+                    observations.push(lines[i]);
+                }
+            }
+            break;
+        }
+    }
+    
+    if (observations.length > 0) {
+        result.observations = observations.join('\n');
+    }
+
+    // ========== 8. EXTRAIR FORMA DE PAGAMENTO ==========
     const paymentKeywords = [
         { pattern: /pix/i, value: 'PIX' },
         { pattern: /cartão de crédito|cartao de credito|credito/i, value: 'Cartão de crédito' },
@@ -976,9 +1073,13 @@ function extractEtevaldaOrder(conversation) {
         { pattern: /à vista|a vista/i, value: 'À vista' },
         { pattern: /parcelado|parcela/i, value: 'Parcelado no cartão' }
     ];
+    
     for (let i = lines.length - 1; i >= 0; i--) {
         for (const kw of paymentKeywords) {
-            if (kw.pattern.test(lines[i])) { result.paymentMethod = kw.value; break; }
+            if (kw.pattern.test(lines[i])) {
+                result.paymentMethod = kw.value;
+                break;
+            }
         }
         if (result.paymentMethod) break;
     }
@@ -1046,18 +1147,44 @@ async function handleGenerateLink() {
         const docRef = await pedidosCollection.add(novoPedido);
         const pedidoId = docRef.id;
 
+        // ========== VERIFICA SE EXISTE PENDENTE PARA ESTE CLIENTE ==========
+        // Se existir, REMOVE COMPLETAMENTE o pendente (já que o cliente comprou)
+        try {
+            // Busca pendentes com o mesmo telefone (qualquer status)
+            const pendingSnapshot = await pendingPurchasesCollection
+                .where('client_phone', '==', formatPhoneForDB(clientPhone))
+                .get();
+            
+            if (!pendingSnapshot.empty) {
+                pendingSnapshot.forEach(async (doc) => {
+                    await pendingPurchasesCollection.doc(doc.id).delete();
+                    console.log(`🗑️ Pendente ${doc.id} removido automaticamente (cliente comprou)`);
+                });
+                // Recarrega os pendentes para atualizar a tela
+                await loadPendingPurchases();
+                renderPendingList();
+                checkPendingAlerts();
+            }
+        } catch (err) {
+            console.error('Erro ao verificar pendentes:', err);
+            // Não interrompe o fluxo principal se der erro
+        }
+
         // ========== LINK DIRETO DO WHATSAPP PARA O CLIENTE ==========
         const delivererName = DELIVERERS[selectedDeliverer]?.name || 'Entregador';
         
         // Captura o horário da entrega
         const deliveryTime = document.getElementById('extDeliveryTime')?.value.trim() || 'A combinar';
         
+        // Captura o bairro (declarado UMA ÚNICA VEZ)
+        const neighborhood = document.getElementById('extNeighborhood')?.value.trim() || '';
+        
         // Monta a mensagem que será enviada para o cliente
         let message = `Olá, sou ${delivererName} da Etevalda Joias.\n\n`;
-        message += `📦 Seu pedido:\n${products}\n\n`;
+        message += `📦 Seu pedido:\n\n${products}\n\n`;
         
-        if (totalValue && totalValue.trim() !== '') {
-            message += `💰 Valor total: ${totalValue}\n\n`;
+        if (neighborhood && neighborhood.trim() !== '') {
+            message += `🏠 *BAIRRO : ${neighborhood.toUpperCase()}*\n\n`;
         }
         
         if (deliveryTime && deliveryTime.trim() !== '') {
@@ -1081,13 +1208,20 @@ async function handleGenerateLink() {
         // Link direto do WhatsApp para o CLIENTE
         const directWhatsAppLink = `https://wa.me/${fullClientPhone}?text=${encodeURIComponent(message)}`;
         
-        // Formata o valor para exibição no texto do entregador
+        // Formata o valor para exibição no texto do entregador (reutiliza a variável neighborhood já declarada)
         const valorDisplay = totalValue && totalValue.trim() !== '' ? totalValue : 'Não informado';
         const horarioDisplay = deliveryTime && deliveryTime.trim() !== '' ? deliveryTime : 'A combinar';
         const localDisplay = locationUrl && locationUrl.trim() !== '' ? locationUrl : 'Não informado';
+        const bairroDisplay = neighborhood && neighborhood.trim() !== '' ? neighborhood.toUpperCase() : '';
         
-        // Texto que será enviado ao ENTREGADOR (formato profissional)
-        const textToCopy = `👇 ENTREGA CLIENTE: ${clientName}\n💰 VALOR DO PEDIDO: ${valorDisplay}\n⏰ HORÁRIO DA ENTREGA: ${horarioDisplay}\n\n📍 LOCALIZAÇÃO: \n${localDisplay}\n\n${directWhatsAppLink}`;
+        // Monta o texto do entregador com bairro (se existir)
+        let textToCopy = `👇 ENTREGA CLIENTE: ${clientName}\n\n`;
+        
+        if (bairroDisplay) {
+            textToCopy += `🏠 *BAIRRO : ${bairroDisplay}*\n\n`;
+        }
+        
+        textToCopy += `💰 VALOR DO PEDIDO: ${valorDisplay}\n⏰ HORÁRIO: ${horarioDisplay}\n\n📍 LOCALIZAÇÃO: \n${localDisplay}\n\n${directWhatsAppLink}`;
 
         document.getElementById('linkOutput').textContent = textToCopy;
         document.getElementById('generatedLinkSection').classList.remove('hidden');

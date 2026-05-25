@@ -96,6 +96,11 @@
           </div>
           <div class="form-group" style="margin-top:0.5rem;"><label>Produto(s) *</label><textarea id="extProducts" style="min-height:120px;"></textarea></div>
           <div class="form-group" style="margin-top:0.5rem;">
+            <label>🏠 Bairro</label>
+            <input type="text" id="extNeighborhood" placeholder="Ex: Centro, Jardim América, Cuiabá..." style="font-weight:600; border-color: var(--gold); background: #fff8e7;">
+            <small style="color:var(--gray-600);font-size:0.8rem;">Informe o bairro para facilitar a localização do entregador</small>
+          </div>
+          <div class="form-group" style="margin-top:0.5rem;">
             <label>⏰ Horário da Entrega</label>
             <input type="text" id="extDeliveryTime" placeholder="Ex: Agora, 17:30, 19:00, Amanhã 10h..." style="font-weight:600; border-color: var(--gold);">
             <small style="color:var(--gray-600);font-size:0.8rem;">Preencha com o horário combinado com o cliente</small>
@@ -131,6 +136,17 @@
             </div>
             <div class="form-group" style="margin-top:0.5rem;"><label>Resumo da Conversa (em português)</label><textarea id="pendingSummary" placeholder="Resumo em português..." style="min-height:80px;"></textarea></div>
             <button class="btn btn-success btn-sm btn-block" style="margin-top:1rem;" onclick="savePendingPurchase()"><i class="fas fa-save"></i> Salvar Pendente</button>
+          </div>
+          <!-- CAMPO DE REAGENDAMENTO RÁPIDO -->
+          <div style="background: #fef3c7; padding: 0.75rem; border-radius: var(--radius); margin-top: 0.5rem; border-left: 4px solid #f59e0b;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <i class="fas fa-calendar-plus" style="color: #f59e0b;"></i>
+              <strong style="color: #92400e;">📌 Cliente pediu para adiar?</strong>
+            </div>
+            <p style="font-size: 0.8rem; color: #92400e; margin-bottom: 0.5rem;">Selecione o pendente abaixo, clique em "✏️ Editar" e altere a data/hora.</p>
+            <div style="font-size: 0.75rem; color: #92400e; background: #fff8e7; padding: 0.5rem; border-radius: 6px;">
+              <i class="fas fa-lightbulb"></i> Dica: Clique no botão "✏️ Editar" do pendente, mude a data e horário, depois clique em "💾 Salvar".
+            </div>
           </div>
           <div id="pendingList" class="order-list" style="margin-top:1rem;"></div>
         </div>
