@@ -1420,7 +1420,7 @@ async function handleGenerateLink() {
         const bairroDisplay = neighborhood && neighborhood.trim() !== '' ? neighborhood.toUpperCase() : '';
         
         // Monta o texto do entregador com bairro (se existir)
-        let textToCopy = `👇 ENTREGA CLIENTE: ${clientName}\n\n`;
+        let textToCopy = `👇 ENTREGA CLIENTE: ${clientName}\n${cleanClientPhone}\n\n`;
         
         if (bairroDisplay) {
             textToCopy += `🏠 *BAIRRO : ${bairroDisplay}*\n\n`;
