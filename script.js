@@ -72,10 +72,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-function isValidUUID(uuid) {
-    if (!uuid) return false;
+function isValidUUID(id) {
+    if (!id) return false;
+    // Aceita UUID tradicional OU ID do Firestore (20 caracteres alfanuméricos)
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(uuid.trim());
+    const firestoreIdRegex = /^[a-zA-Z0-9]{20}$/;
+    return uuidRegex.test(id.trim()) || firestoreIdRegex.test(id.trim());
 }
 
 // ==================== AUTO-PASTE INTELIGENTE ====================
@@ -795,21 +797,64 @@ function getDateRange() {
 // Variável global para o gráfico
 let deliveryChart = null;
 
-function updateReportData() {
+async function updateReportData() {
     const { startDate, endDate } = getDateRange();
+
+    console.log('📊 Relatório - período:', { 
+        tipo: currentFilterType, 
+        inicio: startDate.toString(), 
+        fim: endDate.toString() 
+    });
 
     const filteredEntries = financeEntries.filter(entry => {
         const entryDate = new Date(entry.date + 'T00:00:00');
         return entryDate >= startDate && entryDate <= endDate;
     });
 
-    // CÁLCULO CORRETO - SOMA INVESTIDO E RETORNO, DEPOIS CALCULA O LUCRO
-    const totalInvested = filteredEntries.reduce((sum, entry) => sum + (parseFloat(entry.invested) || 0), 0);
-    const totalReturned = filteredEntries.reduce((sum, entry) => sum + (parseFloat(entry.returned) || 0), 0);
-    const totalProfit = totalReturned - totalInvested;
+    console.log('📊 Registros financeiros no período:', filteredEntries.length);
+
+    let totalInvested = 0, totalRevenue = 0;
+
+    if (filteredEntries.length > 0) {
+        // PRIORIDADE: usa o que foi lançado manualmente nos registros financeiros
+        console.log('📊 Usando PRIORIDADE (registros financeiros)');
+        filteredEntries.forEach(entry => {
+            totalInvested += parseFloat(entry.invested) || 0;
+            totalRevenue += parseFloat(entry.returned) || 0;
+        });
+    } else {
+        // FALLBACK: se não tem nenhum registro financeiro no período, calcula dos pedidos
+        console.log('📊 Usando FALLBACK (pedidos)');
+        try {
+            const snapshot = await pedidosCollection.get();
+            console.log('📊 Total de pedidos no Firestore:', snapshot.size);
+            // Converte start/end para YYYY-MM-DD local (para comparar com a data do pedido)
+            const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const startStr = fmt(startDate);
+            const endStr = fmt(endDate);
+            console.log('📊 Intervalo (string):', startStr, '→', endStr);
+            snapshot.forEach(doc => {
+                const order = doc.data();
+                if (!order.created_at) return;
+                const orderDate = order.created_at.includes('T') 
+                    ? order.created_at.split('T')[0] 
+                    : order.created_at;
+                if (orderDate >= startStr && orderDate <= endStr) {
+                    const val = parseBrazilianCurrency(order.total_value);
+                    totalRevenue += val;
+                    console.log('📦 Pedido incluído:', orderDate, 'valor:', val, 'cliente:', order.client_name);
+                }
+            });
+            console.log('📊 Faturamento total do fallback:', totalRevenue);
+        } catch (error) {
+            console.error('Erro ao carregar pedidos para fallback do relatório:', error);
+        }
+    }
+
+    const totalProfit = totalRevenue - totalInvested;
 
     document.getElementById('summaryInvested').textContent = formatCurrency(totalInvested);
-    document.getElementById('summaryRevenue').textContent = formatCurrency(totalReturned);
+    document.getElementById('summaryRevenue').textContent = formatCurrency(totalRevenue);
     document.getElementById('summaryProfit').textContent = formatCurrency(totalProfit);
 
     let periodLabel;
@@ -830,43 +875,38 @@ function updateReportData() {
 
     renderFilteredFinanceTable(filteredEntries);
     
-    // ATUALIZA O GRÁFICO DE PEDIDOS ENTREGUES
     renderDeliveryChart(startDate, endDate);
 }
 
-// NOVA FUNÇÃO: RENDERIZA O GRÁFICO DE PEDIDOS ENTREGUES POR DIA
+// GRÁFICO: MOSTRA TODOS OS PEDIDOS GERADOS POR DIA (independente do status)
 async function renderDeliveryChart(startDate, endDate) {
     try {
-        // Busca todos os pedidos entregues no período
-        const snapshot = await pedidosCollection
-            .where('status', '==', 'delivered')
-            .get();
+        const snapshot = await pedidosCollection.get();
         
-        // Agrupa por dia
-        const deliveriesByDay = {};
+        const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const startStr = fmt(startDate);
+        const endStr = fmt(endDate);
+        
+        const ordersByDay = {};
         
         snapshot.forEach(doc => {
             const order = doc.data();
-            const createdAt = order.created_at;
-            if (!createdAt) return;
-            
-            const orderDate = new Date(createdAt);
-            // Verifica se o pedido está dentro do período selecionado
-            if (orderDate >= startDate && orderDate <= endDate) {
-                const dayKey = orderDate.toISOString().split('T')[0];
-                deliveriesByDay[dayKey] = (deliveriesByDay[dayKey] || 0) + 1;
+            if (!order.created_at) return;
+            const orderDate = order.created_at.includes('T') 
+                ? order.created_at.split('T')[0] 
+                : order.created_at;
+            if (orderDate >= startStr && orderDate <= endStr) {
+                ordersByDay[orderDate] = (ordersByDay[orderDate] || 0) + 1;
             }
         });
         
-        // Ordena as datas
-        const sortedDays = Object.keys(deliveriesByDay).sort();
+        const sortedDays = Object.keys(ordersByDay).sort();
         const labels = sortedDays.map(day => {
-            const d = new Date(day);
-            return `${d.getDate()}/${d.getMonth() + 1}`;
+            const [y, m, d] = day.split('-');
+            return `${parseInt(d)}/${parseInt(m)}`;
         });
-        const data = sortedDays.map(day => deliveriesByDay[day]);
+        const data = sortedDays.map(day => ordersByDay[day]);
         
-        // Se não houver dados, mostra mensagem amigável
         if (data.length === 0) {
             const ctx = document.getElementById('deliveryChart')?.getContext('2d');
             if (ctx && deliveryChart) {
@@ -876,7 +916,6 @@ async function renderDeliveryChart(startDate, endDate) {
             return;
         }
         
-        // Renderiza ou atualiza o gráfico
         const ctx = document.getElementById('deliveryChart')?.getContext('2d');
         if (!ctx) return;
         
@@ -889,7 +928,7 @@ async function renderDeliveryChart(startDate, endDate) {
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Pedidos Entregues',
+                    label: 'Pedidos Gerados',
                     data: data,
                     backgroundColor: 'rgba(212, 175, 55, 0.7)',
                     borderColor: 'rgba(212, 175, 55, 1)',
@@ -907,7 +946,7 @@ async function renderDeliveryChart(startDate, endDate) {
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return `${context.raw} pedido(s) entregue(s)`;
+                                return `${context.raw} pedido(s)`;
                             }
                         }
                     }
@@ -953,7 +992,7 @@ function renderFilteredFinanceTable(entries) {
     tbody.innerHTML = sortedEntries.map(entry => {
         const invested = parseFloat(entry.invested) || 0;
         const returned = parseFloat(entry.returned) || 0;
-        const profit = returned - invested; // CALCULA NA HORA PARA GARANTIR
+        const profit = returned - invested;
         const margin = invested > 0 ? ((profit / invested) * 100).toFixed(1) : 0;
         const marginClass = profit >= 0 ? 'margin-positive' : 'margin-negative';
 
@@ -981,12 +1020,12 @@ function calculateAutoProfit(context) {
     let invested, returned, profitField;
 
     if (context === 'finance') {
-        invested = parseFloat(document.getElementById('financeInvested').value) || 0;
-        returned = parseFloat(document.getElementById('financeReturned').value) || 0;
+        invested = parseBrazilianCurrency(document.getElementById('financeInvested').value);
+        returned = parseBrazilianCurrency(document.getElementById('financeReturned').value);
         profitField = document.getElementById('financeProfit');
     } else if (context === 'edit') {
-        invested = parseFloat(document.getElementById('editFinanceInvested').value) || 0;
-        returned = parseFloat(document.getElementById('editFinanceReturned').value) || 0;
+        invested = parseBrazilianCurrency(document.getElementById('editFinanceInvested').value);
+        returned = parseBrazilianCurrency(document.getElementById('editFinanceReturned').value);
         profitField = document.getElementById('editFinanceProfit');
     }
 
@@ -1017,8 +1056,8 @@ async function saveEditFinanceEntry() {
     if (!currentFinanceEditId) return;
 
     const date = document.getElementById('editFinanceDate').value;
-    const invested = parseFloat(document.getElementById('editFinanceInvested').value) || 0;
-    const returned = parseFloat(document.getElementById('editFinanceReturned').value) || 0;
+    const invested = parseBrazilianCurrency(document.getElementById('editFinanceInvested').value);
+    const returned = parseBrazilianCurrency(document.getElementById('editFinanceReturned').value);
 
     if (!date || isNaN(invested) || isNaN(returned)) {
         showToast('⚠️ Preencha todos os campos corretamente', 'warning');
@@ -1195,7 +1234,7 @@ function extractEtevaldaOrder(conversation) {
     for (const pattern of totalPatterns) {
         const match = conversation.match(pattern);
         if (match && match[1]) {
-            result.totalValue = match[1].replace(/\s/g, '').replace('.', ',').replace(/,(\d{2})$/, ',$1');
+            result.totalValue = match[1].replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
             break;
         }
     }
@@ -1433,7 +1472,7 @@ async function handleGenerateLink() {
 
         // Abre WhatsApp do ENTREGADOR com o link direto
         const delivererPhone = selectedDeliverer;
-        const whatsappToDeliverer = `https://api.whatsapp.com/send?phone=55${delivererPhone}&text=${encodeURIComponent(textToCopy)}`;
+        const whatsappToDeliverer = `https://api.whatsapp.com/send?phone=${delivererPhone}&text=${encodeURIComponent(textToCopy)}`;
         window.open(whatsappToDeliverer, '_blank');
 
         document.getElementById('extractConversation').value = '';
@@ -1673,15 +1712,24 @@ function formatDateBR(dateStr) {
     return d.toLocaleDateString('pt-BR');
 }
 
+// ✅ PARSE ROBUSTO DE MOEDA BRASILEIRA (lida com R$ 1.500,00 / 1.500,00 / 1500,00 / 500.00)
+function parseBrazilianCurrency(val) {
+    if (val === null || val === undefined || val === '') return 0;
+    if (typeof val === 'number') return val;
+    let cleaned = String(val).replace(/R\$\s*/g, '').trim();
+    // Se tiver vírgula, é formato BR: remove TODOS os pontos, depois troca a ÚLTIMA vírgula por ponto
+    if (cleaned.includes(',')) {
+        cleaned = cleaned.replace(/\./g, '');
+        const lastComma = cleaned.lastIndexOf(',');
+        cleaned = cleaned.substring(0, lastComma) + '.' + cleaned.substring(lastComma + 1);
+    }
+    // Se não tiver vírgula, só remove pontos (milhar BR sem vírgula) ou mantém (formato US)
+    return parseFloat(cleaned) || 0;
+}
+
 function formatCurrency(value) {
     if (value === null || value === undefined) return 'R$ 0,00';
-    let num;
-    if (typeof value === 'string') {
-        const cleaned = value.replace(/R\$\s*/g, '').trim().replace(/\./g, '').replace(',', '.');
-        num = parseFloat(cleaned);
-    } else {
-        num = parseFloat(value);
-    }
+    const num = typeof value === 'string' ? parseBrazilianCurrency(value) : parseFloat(value);
     if (isNaN(num)) return 'R$ 0,00';
     const parts = num.toFixed(2).split('.');
     parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -1738,8 +1786,8 @@ async function addFinanceEntry() {
     if (!dateEl || !investedEl || !returnedEl) return;
 
     const date = dateEl.value;
-    const invested = parseFloat(String(investedEl.value).replace(',', '.')) || 0;
-    const returned = parseFloat(String(returnedEl.value).replace(',', '.')) || 0;
+    const invested = parseBrazilianCurrency(investedEl.value);
+    const returned = parseBrazilianCurrency(returnedEl.value);
 
     if (!date || isNaN(invested) || isNaN(returned)) {
         showToast('⚠️ Preencha corretamente', 'warning');
@@ -1766,9 +1814,48 @@ async function addFinanceEntry() {
     }
 }
 
+// ✅ AUTO-FILL: Preenche o Valor de Retorno com a soma dos pedidos do dia selecionado
+function autoFillReturned(dateInputId, returnedInputId) {
+    const dateInput = document.getElementById(dateInputId);
+    const returnedInput = document.getElementById(returnedInputId);
+    if (!dateInput || !returnedInput) return;
+    const selectedDate = dateInput.value;
+    if (!selectedDate) return;
+    // Soma todos os pedidos que ocorreram nessa data
+    let total = 0;
+    orders.forEach(o => {
+        if (!o.created_at || !o.total_value) return;
+        const orderDate = o.created_at.includes('T') ? o.created_at.split('T')[0] : o.created_at;
+        if (orderDate === selectedDate) {
+            total += parseBrazilianCurrency(o.total_value);
+        }
+    });
+    if (total > 0) {
+        returnedInput.value = total.toFixed(2).replace('.', ',');
+    } else {
+        returnedInput.value = '';
+    }
+    // Atualiza o preview do lucro
+    if (dateInputId === 'financeDate') {
+        calculateAutoProfit('finance');
+    } else if (dateInputId === 'editFinanceDate') {
+        calculateAutoProfit('edit');
+    }
+}
+
 function setDefaultDates() {
     const today = new Date().toISOString().split('T')[0];
-    const financeDate = document.getElementById('financeDate'); if (financeDate) financeDate.value = today;
+    const financeDate = document.getElementById('financeDate');
+    if (financeDate) {
+        financeDate.value = today;
+        financeDate.addEventListener('change', () => autoFillReturned('financeDate', 'financeReturned'));
+        // Já carrega o total do dia atual após um breve delay (para garantir que orders esteja populado)
+        setTimeout(() => autoFillReturned('financeDate', 'financeReturned'), 500);
+    }
+    const editFinanceDate = document.getElementById('editFinanceDate');
+    if (editFinanceDate) {
+        editFinanceDate.addEventListener('change', () => autoFillReturned('editFinanceDate', 'editFinanceReturned'));
+    }
     const pendingDate = document.getElementById('pendingPurchaseDate'); if (pendingDate) pendingDate.value = today;
     const pendingTime = document.getElementById('pendingPurchaseTime'); if (pendingTime) pendingTime.value = '';
     const receivableDate = document.getElementById('receivableDate'); if (receivableDate) receivableDate.value = today;
