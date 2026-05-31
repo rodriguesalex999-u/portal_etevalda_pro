@@ -273,35 +273,6 @@ async function loadReceivables() {
     }
 }
 
-function setupRealtimeSubscription() {
-    supabaseClient.channel('public:pedidos')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            if (!urlParams.get('id')) loadData();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'pending_purchases' }, () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            if (!urlParams.get('id')) {
-                loadData();
-                checkPendingAlerts(); // ✅ Reavalia alertas quando pendentes mudam
-            }
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'finance_entries' }, () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            if (!urlParams.get('id')) loadData();
-        })
-        .subscribe(status => {
-            if (status === 'SUBSCRIBED') {
-                document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-circle" style="font-size:0.5rem;"></i> Online';
-                document.getElementById('connectionStatus').className = 'badge badge-delivered';
-            } else if (status === 'CHANNEL_ERROR') {
-                document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-circle" style="font-size:0.5rem;"></i> Offline';
-                document.getElementById('connectionStatus').className = 'badge badge-cancelled';
-                showToast('⚠️ Conexão em tempo real falhou', 'warning');
-            }
-        });
-}
-
 async function refreshData(evt) {
     const btn = evt?.currentTarget;
     if (!btn) { await loadData(); return; }
@@ -741,6 +712,7 @@ function setupReportFilters() {
             currentFilterType = chip.dataset.days;
             currentFilterMonth = 'custom';
             document.getElementById('monthSelector').value = 'custom';
+            document.getElementById('customDateRange').classList.add('hidden');
             updateReportData();
         });
     });
@@ -751,9 +723,29 @@ function setupReportFilters() {
         if (e.target.value === 'current') {
             currentFilterType = 'current';
             document.querySelector('.filter-chip[data-days="current"]').classList.add('active');
+            document.getElementById('customDateRange').classList.add('hidden');
+        } else if (e.target.value === 'custom') {
+            currentFilterType = 'custom';
+            document.getElementById('customDateRange').classList.remove('hidden');
+            const today = new Date();
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('customStartDate').value = startOfMonth.toISOString().split('T')[0];
+            document.getElementById('customEndDate').value = today.toISOString().split('T')[0];
         } else {
             currentFilterType = 'custom';
+            document.getElementById('customDateRange').classList.add('hidden');
         }
+        updateReportData();
+    });
+
+    document.getElementById('applyCustomDateBtn').addEventListener('click', () => {
+        const start = document.getElementById('customStartDate').value;
+        const end = document.getElementById('customEndDate').value;
+        if (!start || !end) { showToast('⚠️ Selecione data de início e fim', 'warning'); return; }
+        if (start > end) { showToast('⚠️ Data inicial não pode ser maior que a final', 'warning'); return; }
+        currentFilterType = 'custom_date';
+        currentFilterMonth = 'custom';
+        document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
         updateReportData();
     });
 
@@ -764,7 +756,17 @@ function getDateRange() {
     const now = new Date();
     let startDate, endDate;
 
-    if (currentFilterType === 'current' || currentFilterMonth === 'current') {
+    if (currentFilterType === 'custom_date') {
+        const startVal = document.getElementById('customStartDate').value;
+        const endVal = document.getElementById('customEndDate').value;
+        if (startVal && endVal) {
+            startDate = new Date(startVal + 'T00:00:00');
+            endDate = new Date(endVal + 'T23:59:59');
+        } else {
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        }
+    } else if (currentFilterType === 'current' || currentFilterMonth === 'current') {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     } else if (currentFilterType === '7') {
@@ -782,7 +784,6 @@ function getDateRange() {
     } else {
         const monthsAgo = parseInt(currentFilterMonth);
         if (isNaN(monthsAgo)) {
-            // Caso seja 'custom' ou outro valor inválido, usa mês atual
             startDate = new Date(now.getFullYear(), now.getMonth(), 1);
             endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
         } else {
@@ -858,7 +859,11 @@ async function updateReportData() {
     document.getElementById('summaryProfit').textContent = formatCurrency(totalProfit);
 
     let periodLabel;
-    if (currentFilterType === 'current' || currentFilterMonth === 'current') {
+    if (currentFilterType === 'custom_date') {
+        const s = document.getElementById('customStartDate').value;
+        const e = document.getElementById('customEndDate').value;
+        periodLabel = `${formatDateBR(s)} — ${formatDateBR(e)} (Personalizado)`;
+    } else if (currentFilterType === 'current' || currentFilterMonth === 'current') {
         const now = new Date();
         periodLabel = `Mês Atual (01/${String(now.getMonth() + 1).padStart(2, '0')} até ${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')})`;
     } else if (currentFilterType === '7') {
@@ -1105,12 +1110,12 @@ async function handleExtract() {
 
     const extracted = extractEtevaldaOrder(conversation);
 
-    document.getElementById('extClientName').value = extracted.clientName || '';
+    document.getElementById('extClientName').value = (extracted.clientName || '').toUpperCase();
     document.getElementById('extClientPhone').value = extracted.clientPhone || '';
     document.getElementById('extProducts').value = extracted.products || '';
     document.getElementById('extPayment').value = extracted.paymentMethod || '';
     document.getElementById('extValue').value = extracted.totalValue || '';
-    document.getElementById('extObservations').value = '';
+    document.getElementById('extObservations').value = extracted.observations || '';
     document.getElementById('extDeliveryTime').value = extracted.deliveryTime || '';
     document.getElementById('extNeighborhood').value = extracted.neighborhood || '';
 
@@ -1133,38 +1138,83 @@ function extractEtevaldaOrder(conversation) {
         totalValue: '',
         observations: '',
         locationUrl: '',
-        deliveryTime: ''
+        deliveryTime: '',
+        neighborhood: ''
     };
 
     // ========== 1. EXTRAIR LINK DE LOCALIZAÇÃO ==========
-    const mapsPattern = /https?:\/\/(?:maps\.(?:google|app)\.goo\.gl|goo\.gl\/maps)[^\s]*/i;
+    const mapsPattern = /https?:\/\/(?:maps\.(?:google|app)\.goo\.gl|goo\.gl\/maps|maps\.google\.com\/maps)[^\s]*/i;
     const mapsMatch = conversation.match(mapsPattern);
     if (mapsMatch) result.locationUrl = mapsMatch[0];
 
     // ========== 2. EXTRAIR TELEFONE ==========
-    // Padrão 1: +55 43 9132-5844 ou +554391325844
-    let phoneMatch = conversation.match(/\+55\s*(\d{2})\s*(\d{4,5})-?(\d{4})/);
-    if (phoneMatch) {
-        result.clientPhone = '55' + phoneMatch[1] + phoneMatch[2] + phoneMatch[3];
-    } else {
-        // Padrão 2: 55\d{10,11}
+    // Lista de números de entregadores para filtrar
+    const delivererPhones = Object.keys(DELIVERERS).map(p => p.replace(/\D/g, ''));
+    
+    // Função auxiliar para filtrar telefone do cliente (remove entregadores)
+    const filterClientPhone = (phone) => {
+        const cleaned = phone.replace(/\D/g, '');
+        if (!cleaned) return '';
+        // Se for número de entregador, rejeita
+        if (delivererPhones.some(dp => cleaned.includes(dp) || dp.includes(cleaned))) return '';
+        return cleaned;
+    };
+    
+    // Padrão 1: WhatsApp export format [timestamp] phone:
+    const whatsappSenderMatch = conversation.match(/\[.*?\]\s*\+55\s*(\d{2})\s*(\d{4,5})-?(\d{4})\s*:/);
+    if (whatsappSenderMatch) {
+        const candidate = '55' + whatsappSenderMatch[1] + whatsappSenderMatch[2] + whatsappSenderMatch[3];
+        const filtered = filterClientPhone(candidate);
+        if (filtered) result.clientPhone = filtered;
+    }
+    
+    // Padrão 2: +55 43 9132-5844 ou +554391325844 (apenas se ainda não achou)
+    if (!result.clientPhone) {
+        const allPlusMatches = conversation.match(/\+55\s*(\d{2})\s*(\d{4,5})-?(\d{4})/g);
+        if (allPlusMatches) {
+            // Pega o último que NÃO é entregador
+            for (let i = allPlusMatches.length - 1; i >= 0; i--) {
+                const m = allPlusMatches[i].match(/\+55\s*(\d{2})\s*(\d{4,5})-?(\d{4})/);
+                if (m) {
+                    const candidate = '55' + m[1] + m[2] + m[3];
+                    const filtered = filterClientPhone(candidate);
+                    if (filtered) { result.clientPhone = filtered; break; }
+                }
+            }
+        }
+    }
+    
+    // Padrão 3: 55\d{10,11} (apenas se ainda não achou)
+    if (!result.clientPhone) {
         const phonePattern = /55\d{10,11}/g;
         const phones = conversation.match(phonePattern);
         if (phones && phones.length > 0) {
-            result.clientPhone = phones[phones.length - 1];
-        } else {
-            // Padrão 3: Apenas números com 10-11 dígitos
-            const simplePhone = conversation.match(/\d{10,11}/);
-            if (simplePhone) result.clientPhone = '55' + simplePhone[0];
+            for (let i = phones.length - 1; i >= 0; i--) {
+                const filtered = filterClientPhone(phones[i]);
+                if (filtered) { result.clientPhone = filtered; break; }
+            }
         }
     }
+    
+    // Padrão 4: Apenas números com 10-11 dígitos (último recurso)
+    if (!result.clientPhone) {
+        const simplePhones = conversation.match(/\d{10,11}/g);
+        if (simplePhones && simplePhones.length > 0) {
+            for (let i = simplePhones.length - 1; i >= 0; i--) {
+                const candidate = '55' + simplePhones[i];
+                const filtered = filterClientPhone(candidate);
+                if (filtered) { result.clientPhone = filtered; break; }
+            }
+        }
+    }
+    
     // Remove espaços e caracteres especiais
     if (result.clientPhone) {
         result.clientPhone = result.clientPhone.replace(/\D/g, '');
     }
 
     // ========== 3. EXTRAIR NOME DO CLIENTE ==========
-    // Padrão 1: ~NOME (WhatsApp direto)
+    // Padrão 1: ~NOME (Manychat / WhatsApp direto com ~)
     const tildeMatch = conversation.match(/~([A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç]+)/);
     if (tildeMatch && tildeMatch[1]) {
         result.clientName = tildeMatch[1].trim();
@@ -1176,15 +1226,37 @@ function extractEtevaldaOrder(conversation) {
         result.clientName = firstNameMatch[1].trim();
     }
     
-    // Padrão 3: Detectar nome em linhas específicas
+    // Padrão 3: WhatsApp - agente chamando cliente pelo nome (ex: "Olá Maria", "Maria, tudo bem?")
+    if (!result.clientName) {
+        // Procura por saudações do agente seguidas de nome próprio
+        const agentGreeting = conversation.match(/(?:Olá|Oi|Bom dia|Boa tarde|Boa noite)\s+([A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+)(?:,|!|\s|$)/i);
+        if (agentGreeting && agentGreeting[1]) {
+            const name = agentGreeting[1].trim();
+            if (name.length > 2 && name.length < 20 && !name.match(/^(vc|você|amigo|amiga|querido|querida|tudo|bem|sim|não)$/i)) {
+                result.clientName = name;
+            }
+        }
+        // Se não achou com saudação, procura por "Nome, " (agente chamando pelo nome)
+        if (!result.clientName) {
+            const nameCallMatch = conversation.match(/([A-ZÁ-ÚÃÕÇ][a-zá-úãõç]{2,15}),\s*(?:tudo bem|tudo|vc|você|me|pode|vamos|então|viu|sabe|vou|já|agora|só|estou|está)/i);
+            if (nameCallMatch && nameCallMatch[1]) {
+                const name = nameCallMatch[1].trim();
+                if (name.length > 2 && name.length < 20) {
+                    result.clientName = name;
+                }
+            }
+        }
+    }
+    
+    // Padrão 4: Detectar nome nas primeiras linhas da conversa
     if (!result.clientName) {
         for (let i = 0; i < Math.min(8, lines.length); i++) {
             const line = lines[i];
             // Evita linhas com telefone, horários, etc.
-            if (line.match(/^\+55|\d{10,}|horas?|hrs?|hoje/i)) continue;
+            if (line.match(/^\+55|\d{10,}|horas?|hrs?|hoje|\[.*?\]/i)) continue;
             // Nome com 2-4 palavras, letras maiúsculas no início
-            const nameMatch = line.match(/^([A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+(?:\s+[A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+){0,2})$/);
-            if (nameMatch && nameMatch[1] && nameMatch[1].length > 2 && nameMatch[1].length < 30) {
+            const nameMatch = line.match(/^([A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+(?:\s+[A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+){0,3})$/);
+            if (nameMatch && nameMatch[1] && nameMatch[1].length > 2 && nameMatch[1].length < 40) {
                 result.clientName = nameMatch[1];
                 break;
             }
@@ -1205,7 +1277,7 @@ function extractEtevaldaOrder(conversation) {
             continue;
         }
         if (inPedido) {
-            if (/^(✅|Total|-----|---)/i.test(line) || (line.includes('Total') && line.includes(':'))) {
+            if ((line.includes('Total') && line.includes(':')) || /✅/.test(line)) {
                 pedidoLines.push(line);
                 break;
             }
@@ -1215,6 +1287,30 @@ function extractEtevaldaOrder(conversation) {
     
     if (pedidoLines.length > 0) {
         result.products = pedidoLines.join('\n');
+    }
+    
+    // Se o bloco foi encontrado, aplica formatação: linha em branco após título + total com ✅
+    if (result.products && result.products.trim() !== '') {
+        const prodLines = result.products.split('\n');
+        // Se a primeira linha parece um título (bold, all caps, etc), insere linha em branco depois
+        if (prodLines.length > 1 && prodLines[0].startsWith('*')) {
+            if (prodLines[1] !== '') {
+                prodLines.splice(1, 0, '');
+            }
+        }
+        // Garante linha em branco antes da linha de Total
+        const totalIdx = prodLines.findIndex(l => /Total\s*:/i.test(l));
+        if (totalIdx > 0 && prodLines[totalIdx - 1] !== '') {
+            prodLines.splice(totalIdx, 0, '');
+        }
+        // Verifica se já tem total com ✅, senão adiciona
+        const hasTotalWithCheck = prodLines.some(l => /Total.*:.*✅/i.test(l));
+        if (!hasTotalWithCheck && result.totalValue) {
+            prodLines.push('');
+            prodLines.push('-------------------');
+            prodLines.push(`Total : ${result.totalValue} ✅`);
+        }
+        result.products = prodLines.join('\n');
     }
     
     // Fallback: procura por linhas com valores monetários
@@ -1234,28 +1330,69 @@ function extractEtevaldaOrder(conversation) {
     for (const pattern of totalPatterns) {
         const match = conversation.match(pattern);
         if (match && match[1]) {
-            result.totalValue = match[1].replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
+            let raw = match[1].replace(/\s/g, '');
+            if (raw.includes(',')) {
+                result.totalValue = raw.replace(/\./g, '').replace(',', '.');
+            } else {
+                result.totalValue = raw;
+            }
             break;
         }
     }
 
     // ========== 6. EXTRAIR HORÁRIO DA ENTREGA ==========
+    // Primeiro: procura por intervalo de horário (ex: "das 11 até 12:40", "entre as 11 e 12:40")
+    const rangeMatch = conversation.match(/(?:das|de|entre)\s+(?:as\s+)?(\d{1,2})(?::(\d{2}))?\s*(?:h|hrs|horas)?\s*(?:até|ate|as|às|e|a)\s+(?:as\s+)?(\d{1,2})(?::(\d{2}))?\s*(?:h|hrs|horas)?/i);
+    if (rangeMatch) {
+        const h1 = rangeMatch[1];
+        const m1 = rangeMatch[2] || '00';
+        const h2 = rangeMatch[3];
+        const m2 = rangeMatch[4] || '00';
+        result.deliveryTime = `Entre as ${h1}:${m1} e ${h2}:${m2}`;
+    }
+    
+    // Dias da semana em português
+    const weekdays = /(segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)/i;
     const timePatterns = [
-        /(entregamos|entrega|saindo|chegando)\s+(hoje|amanhã)?\s*[\w\s]*(\d{1,2})\s*(?:h|:)?\s*(\d{0,2})?\s*(?:hrs|horas)?/i,
-        /(Hoje|Amanhã)\s+(?:as|às)\s*(\d{1,2})(?::(\d{2}))?\s*(?:h|hrs|horas)?/i,
+        // Padrão: "na segunda 12:00" / "pra segunda 12:00" / "segunda as 12:00" (com range)
+        new RegExp('(?:na|pra|para)?\\s*' + weekdays.source + '\\s*(?:feira)?\\s*(?:as|às)?\\s*(\\d{1,2})(?:[:h](\\d{2}))?', 'i'),
+        // Padrão: "segunda-feira as 11" / "segunda feira as 11"
+        new RegExp(weekdays.source + '\\s*feira\\s+(?:as|às)\\s*(\\d{1,2})(?::(\\d{2}))?', 'i'),
+        // Padrão: "entregar na segunda" / "passar na segunda"
+        /(entregamos?|entrega|saindo|chegando|passar|passo)\s+(hoje|amanh[ãa])?\s*[\w\s]*(\d{1,2})\s*(?:h|:)?\s*(\d{0,2})?\s*(?:hrs|horas)?/i,
+        /(Hoje|Amanh[ãa])\s+(?:as|às)\s*(\d{1,2})(?::(\d{2}))?\s*(?:h|hrs|horas)?/i,
         /(\d{1,2}):(\d{2})\s*(?:h|hrs)/i,
-        /(entrega|saindo)\s+(\d{1,2})\s*(?:h|:)/i
+        /(entrega|saindo|passar)\s+(\d{1,2})\s*(?:h|:)/i
     ];
     
-    for (const pattern of timePatterns) {
-        const match = conversation.match(pattern);
-        if (match) {
+    if (!result.deliveryTime) {
+        for (const pattern of timePatterns) {
+            const match = conversation.match(pattern);
+            if (!match) continue;
+            
+            // Se capturou dia da semana (grupo 1 do regex composto)
+            const dayOfWeek = match[1] && weekdays.test(match[1]) ? match[1] : null;
+            const timeHour = match[2] || match[3] || match[1] || '';
+            const timeMin = match[3] || match[4] || '';
+            
+            if (dayOfWeek) {
+                let dayName = dayOfWeek;
+                const dayMap = { 'terça': 'terca', 'terca': 'terca', 'sábado': 'sabado', 'sabado': 'sabado' };
+                dayName = dayMap[dayName.toLowerCase()] || dayName;
+                dayName = dayName.charAt(0).toUpperCase() + dayName.slice(1).toLowerCase();
+                if (match[1].toLowerCase().includes('feira') || match[0].toLowerCase().includes('feira')) {
+                    dayName += '-feira';
+                }
+                result.deliveryTime = dayName + ' as ' + timeHour + (timeMin ? ':' + timeMin : '') + 'h';
+                break;
+            }
+            
             if (match[1] && (match[1].toLowerCase().includes('hoje') || match[1].toLowerCase().includes('amanhã'))) {
                 result.deliveryTime = match[1] + ' ' + (match[2] || '') + (match[3] ? ':' + match[3] : '') + 'h';
-            } else if (match[2]) {
+            } else if (match[2] && !/^\d{1,2}$/.test(match[1])) {
                 result.deliveryTime = (match[1] || 'Hoje') + ' as ' + match[2] + (match[3] ? ':' + match[3] : '') + 'h';
-            } else if (match[1] && match[2]) {
-                result.deliveryTime = 'Hoje as ' + match[1] + ':' + match[2] + 'h';
+            } else if (match[1] && match[2] && /^\d{1,2}$/.test(match[1])) {
+                result.deliveryTime = 'Hoje as ' + match[1] + (match[2] ? ':' + match[2] : '') + 'h';
             }
             if (result.deliveryTime) break;
         }
@@ -1264,50 +1401,135 @@ function extractEtevaldaOrder(conversation) {
     // Limpa o horário detectado
     if (result.deliveryTime) {
         result.deliveryTime = result.deliveryTime.replace(/\s+/g, ' ').trim();
+        result.deliveryTime = result.deliveryTime.replace(/as\s+as/, 'as');
     }
 
     // ========== 7. EXTRAIR OBSERVAÇÕES (ENDEREÇO) ==========
     let observations = [];
     
-    // Procura por padrões de endereço
-    const addressPatterns = [
-        /(?:Rua|Av|Avenida|Travessa|Alameda|Praça)\s+([^,\n]+)/i,
-        /(?:Número|nº|#)\s*:?\s*(\d+)/i,
-        /(?:Casa|Apto|Bloco|Quadra)\s*:?\s*([^,\n]+)/i,
-        /(?:Portão|Muro)\s*:?\s*([^,\n]+)/i,
-        /(?:Ponto de referência|Referência)\s*:?\s*([^,\n]+)/i,
-        /(?:Bairro)\s*:?\s*([^,\n]+)/i,
-        /(?:CEP)\s*:?\s*(\d{5}-?\d{3})/i
-    ];
+    // Palavras-chave que indicam informação de endereço (primeira palavra da linha)
+    const addressStartWords = /^(rua|av|avenida|travessa|alameda|praça|casa|apto|bloco|quadra|portão|muro|residencial|condomínio|conjunto|lote|complemento|esquina|fundo|fundos|sobrado|bairro|cep|depois|próximo|ponto|referência|rotatória|contorno|atrás|acima|abaixo)/i;
+    // Linhas de template/instrução do atendente (não são endereço do cliente)
+    const templateLines = /^(me envie|localização pelo mapa|localização|nome da rua|número da casa|cor do portão|sua esposa|temos algumas|parabéns|vamos|deixa eu|sabe o tamanho|se comprar|sem risco|excelente|eu que te agradeço|maravilha|como vc tem|a sua vc|deus abençoe|sim, vou|vc pode falar|vou fazer|combinado, tenho|vou dar|espera ai|ha sim|anota|blz|hoje,|combinado segunda)/i;
     
-    for (const pattern of addressPatterns) {
-        const match = conversation.match(pattern);
-        if (match && match[1]) {
-            observations.push(`${pattern.source.match(/[A-Za-zÀ-ú]+/)[0]}: ${match[1].trim()}`);
+    // 7a. Experimenta TODOS os marcadores de localização, fica com o melhor bloco
+    const locationMarkers = [];
+    for (let i = 0; i < lines.length; i++) {
+        const l = lines[i].toLowerCase();
+        if (l.includes('location') || l.includes('localização') || l.includes('clique na imagem') || l.includes('ver no mapa')) {
+            locationMarkers.push(i);
         }
     }
     
-    // Procura por linha específica de endereço
-    for (const line of lines) {
-        if (line.toLowerCase().includes('localização pelo mapa') || 
-            line.toLowerCase().includes('nome da rua') ||
-            line.toLowerCase().includes('número da casa')) {
-            // Pega as próximas linhas
-            const idx = lines.indexOf(line);
-            for (let i = idx + 1; i < Math.min(idx + 6, lines.length); i++) {
-                if (lines[i] && !lines[i].match(/^\d{1,2}:\d{2}/) && lines[i].length > 3) {
-                    observations.push(lines[i]);
-                }
-            }
-            break;
+    const pedidoEnd = (fromIdx) => {
+        for (let i = fromIdx + 1; i < lines.length; i++) {
+            const l = lines[i].toLowerCase();
+            if (/^(pedido|📦|👇)/i.test(l) || l.includes('automation') || l.includes('automação') || l.includes('tag adicionada')) return i;
         }
+        return lines.length;
+    };
+    
+    const extractBlockAfter = (startIdx) => {
+        const block = [];
+        const endIdx = pedidoEnd(startIdx);
+        const slice = lines.slice(startIdx + 1, endIdx);
+        let capturing = false;
+        for (const line of slice) {
+            if (/^(location|localização|clique|👇|✅|whatssap|whatsapp|qualificar|tag|pedido)/i.test(line)) continue;
+            if (/^\d{1,2}:\d{2}/.test(line)) continue;
+            if (/^https?:\/\//i.test(line)) continue;
+            if (line.length < 3 || line.length > 100) continue;
+            if (templateLines.test(line)) {
+                if (capturing) break;
+                continue;
+            }
+            const isAddr = addressStartWords.test(line) || /^\d/.test(line) || /rotatória|contorno|referência|próximo|escola|academia/i.test(line);
+            if (isAddr) {
+                block.push(line);
+                capturing = true;
+            } else if (capturing) {
+                break;
+            }
+        }
+        return block;
+    };
+    
+    // Tenta cada marcador, do primeiro ao último; fica com o bloco mais longo
+    let bestBlock = [];
+    for (const marker of locationMarkers) {
+        const block = extractBlockAfter(marker);
+        if (block.length > bestBlock.length) {
+            bestBlock = block;
+        }
+    }
+    observations = bestBlock;
+    
+    // 7b. Complementa com linhas de endereço perto do Pedido (ex: "Ponto de referência")
+    if (observations.length > 0) {
+        // Pega as últimas 25 linhas antes do Pedido
+        let pedidoIdx = lines.findIndex(l => /^pedido/i.test(l));
+        if (pedidoIdx < 0) pedidoIdx = lines.length;
+        const tail = lines.slice(Math.max(0, pedidoIdx - 25), pedidoIdx);
+        for (const line of tail) {
+            if (observations.includes(line)) continue;
+            if (line.length < 3 || line.length > 100) continue;
+            if (templateLines.test(line)) continue;
+            if (/^(location|localização|clique|👇|✅|whatssap|whatsapp)/i.test(line)) continue;
+            const isAddr = addressStartWords.test(line) || /rotatória|contorno|referência|próximo|escola|academia/i.test(line);
+            if (isAddr) {
+                observations.push(line);
+            }
+        }
+    }
+    
+    // 7c. Fallback total: varre toda a conversa por blocos de endereço
+    if (observations.length === 0) {
+        let currentBlock = [];
+        
+        for (const line of lines) {
+            if (line.length < 3 || line.length > 100) { currentBlock = []; continue; }
+            if (/^\d{1,2}:\d{2}/.test(line)) { currentBlock = []; continue; }
+            if (/^https?:\/\//i.test(line)) { currentBlock = []; continue; }
+            if (templateLines.test(line)) { currentBlock = []; continue; }
+            
+            const isAddr = addressStartWords.test(line) || /^\d/.test(line) || /rotatória|contorno|referência|próximo|escola|academia/i.test(line);
+            
+            if (isAddr) {
+                currentBlock.push(line);
+                if (currentBlock.length > bestBlock.length) {
+                    bestBlock = [...currentBlock];
+                }
+            } else {
+                currentBlock = [];
+            }
+        }
+        
+        observations = bestBlock.length > 1 ? bestBlock : [];
     }
     
     if (observations.length > 0) {
         result.observations = observations.join('\n');
     }
 
-    // ========== 8. EXTRAIR FORMA DE PAGAMENTO ==========
+    // ========== 8. EXTRAIR BAIRRO ==========
+    const bairroPatterns = [
+        /Bairro\s*:?\s*([A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç\s]+)/i,
+        /Bairro\s+do\s+Cliente\s*:?\s*([A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç\s]+)/i,
+        /(?:no\s+)?bairro\s+([A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç\s]{2,30})/i,
+        /Bairro\s*:\s*([^\n,]+)/i
+    ];
+    for (const pattern of bairroPatterns) {
+        const match = conversation.match(pattern);
+        if (match && match[1]) {
+            const bairro = match[1].trim();
+            if (bairro.length > 2 && bairro.length < 40) {
+                result.neighborhood = bairro;
+                break;
+            }
+        }
+    }
+
+    // ========== 9. EXTRAIR FORMA DE PAGAMENTO ==========
     const paymentKeywords = [
         { pattern: /pix/i, value: 'PIX' },
         { pattern: /cartão de crédito|cartao de credito|credito/i, value: 'Cartão de crédito' },
@@ -1327,24 +1549,51 @@ function extractEtevaldaOrder(conversation) {
         }
         if (result.paymentMethod) break;
     }
+    if (!result.paymentMethod) {
+        result.paymentMethod = 'PIX';
+    }
 
     return result;
 }
 
 function extractFallbackProducts(lines) {
-    const currencyPattern = /(r\$?\s*\d{1,3}(\.\d{3})*,\d{2})|(\d+,\d{2})/i;
+    const currencyPattern = /(r?\$?\s*\d{1,3}(\.\d{3})*,\d{2})/i;
     const items = [];
+    let totalValue = '';
+    
+    for (const line of lines) {
+        const totalMatch = line.match(/Total\s*:?\s*R?\$?\s*(\d{1,3}(?:[\.\s]\d{3})*[.,]\d{2})/i);
+        if (totalMatch && totalMatch[1]) {
+            totalValue = totalMatch[1].replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
+            break;
+        }
+    }
+
     const tail = lines.slice(-15);
     for (const line of tail) {
         if (line.includes(':') && currencyPattern.test(line) && !/^total/i.test(line)) {
             const [label, value] = line.split(':', 2);
-            if (label.trim() && value.trim()) items.push(`${label.trim()}: ${value.trim()}`);
+            if (label && label.trim() && value && value.trim()) items.push(`${label.trim()}: ${value.trim()}`);
         } else if (currencyPattern.test(line) && line.length < 80 && !/^\d/.test(line)) {
             items.push(line.trim());
         }
     }
-    if (items.length > 0) return items.join('\n');
-    return 'Produto não identificado - revisar conversa';
+    
+    if (items.length === 0) return 'Produto não identificado - revisar conversa';
+    
+    let productsText = items.join('\n');
+    const linesProd = productsText.split('\n');
+    if (linesProd.length > 1 && !linesProd[0].startsWith('*')) {
+        linesProd.splice(1, 0, '');
+        productsText = linesProd.join('\n');
+    }
+    if (totalValue) {
+        const totalNumerico = parseFloat(totalValue);
+        if (!isNaN(totalNumerico)) {
+            productsText += `\n-------------------\nTotal : ${formatCurrency(totalNumerico)} ✅`;
+        }
+    }
+    return productsText;
 }
 
 function updateSendButton() {

@@ -526,6 +526,19 @@
     border-color: var(--gold);
     box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
     }
+
+.custom-date-range {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: white;
+    border: 1px solid var(--gold);
+    border-radius: var(--radius);
+    }
+
+.custom-date-inputs {
+    display: flex;
+    gap: 0.5rem;
+    }
     
     /* ========== CARDS DE RESUMO FINANCEIRO ========== */
     .finance-summary-cards {

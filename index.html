@@ -216,6 +216,19 @@
               <option value="-5">5 Meses Atrás</option>
               <option value="custom">Personalizado...</option>
             </select>
+            <div id="customDateRange" class="hidden custom-date-range">
+              <div class="custom-date-inputs">
+                <div class="form-group" style="flex:1;">
+                  <label style="font-size:0.8rem;">De</label>
+                  <input type="date" id="customStartDate">
+                </div>
+                <div class="form-group" style="flex:1;">
+                  <label style="font-size:0.8rem;">Até</label>
+                  <input type="date" id="customEndDate">
+                </div>
+              </div>
+              <button class="btn btn-primary btn-sm" id="applyCustomDateBtn" style="margin-top:0.25rem;"><i class="fas fa-check"></i> Aplicar</button>
+            </div>
           </div>
         </div>
 
