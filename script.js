@@ -1142,9 +1142,17 @@ function extractEtevaldaOrder(conversation) {
         neighborhood: ''
     };
 
-    // ========== 1. EXTRAIR LINK DE LOCALIZAÇÃO ==========
-    const mapsPattern = /https?:\/\/(?:maps\.(?:google|app)\.goo\.gl|goo\.gl\/maps|maps\.google\.com\/maps)[^\s]*/i;
-    const mapsMatch = conversation.match(mapsPattern);
+    // ========== 1. EXTRAIR LINK DE LOCALIZAÇÃO (Plano A, B e C) ==========
+    // Plano A: Google Maps Tradicional e Encurtados
+    const mapsPattern = /https?:\/\/(?:maps\.(?:google|app)\.goo\.gl|goo\.gl\/maps|maps\.google\.com|google\.com\/maps)[^\s]*/i;
+    
+    // Plano B: Link de Coordenadas Diretas (O formato que estava falhando)
+    const coordPattern = /https?:\/\/(?:www\.)?google\.com\/maps\?q=[^\s]*/i;
+    
+    // Plano C: Waze
+    const wazePattern = /https?:\/\/(?:www\.)?(?:waze\.com|waze\.to)[^\s]*/i;
+
+    const mapsMatch = conversation.match(mapsPattern) || conversation.match(coordPattern) || conversation.match(wazePattern);
     if (mapsMatch) result.locationUrl = mapsMatch[0];
 
     // ========== 2. EXTRAIR TELEFONE ==========
