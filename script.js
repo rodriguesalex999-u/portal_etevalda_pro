@@ -23,13 +23,14 @@ const receivablesCollection = db.collection('receivables');
 
 // ✅ ENTREGADORES ATUALIZADOS
 const DELIVERERS = {
-    '5565992038306': { name: 'Raielle', phone: '5565992038306' },
-    '5566996952171': { name: 'Ginaldo', phone: '5566996952171' },
-    '5565992022295': { name: 'Sol', phone: '5565992022295' },
-    '5565996328797': { name: 'Flavia', phone: '5565996328797' },
-    '5565992215786': { name: 'Kinho', phone: '5565992215786' },
-    '556699034031': { name: 'Deyvid', phone: '556699034031' },
-    '5566992481370': { name: 'Paulo', phone: '5566992481370' },
+    '5565992038306': { name: 'Sr(a) Raielle', phone: '5565992038306' },
+    '5566996952171': { name: 'Sr Ginaldo', phone: '5566996952171' },
+    '5565992022295': { name: 'Sr(a) Sol', phone: '5565992022295' },
+    '5565996328797': { name: 'Sr(a) Flavia', phone: '5565996328797' },
+    '5565992215786': { name: 'Sr Kinho', phone: '5565992215786' },
+    '556699034031': { name: 'Sr Deyvid', phone: '556699034031' },
+    '5566992481370': { name: 'Sr Paulo', phone: '5566992481370' },
+    '5565984428298': { name: 'Sr(a) Guta', phone: '5565984428298' },
 };
 
 let orders = [], pendingPurchases = [], financeEntries = [], receivables = [];
