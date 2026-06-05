@@ -43,6 +43,7 @@ let currentEditReceivableId = null;
 // ✅ VARIÁVEIS DE FILTRO DO RELATÓRIO
 let currentFilterType = 'current';
 let currentFilterMonth = 'current';
+let reportFiltersInitialized = false;
 
 // ✅ INTERVALO PARA VERIFICAÇÃO DE ALERTAS
 let pendingAlertInterval = null;
@@ -217,6 +218,8 @@ async function loadData() {
         renderAllLists();
         updateStats();
         checkPendingAlerts(); // ✅ Verifica alertas ao carregar dados
+        // ✅ Recalcula o auto-preenchimento do valor de retorno com os pedidos mais recentes
+        autoFillReturned('financeDate', 'financeReturned');
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
         showToast('⚠️ Erro ao sincronizar com o banco', 'error');
@@ -706,6 +709,11 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 
 // ==================== FILTROS DO RELATÓRIO FINANCEIRO ====================
 function setupReportFilters() {
+    if (reportFiltersInitialized) {
+        updateReportData();
+        return;
+    }
+    reportFiltersInitialized = true;
     document.querySelectorAll('.filter-chip').forEach(chip => {
         chip.addEventListener('click', () => {
             document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
@@ -1118,7 +1126,7 @@ async function handleExtract() {
     document.getElementById('extValue').value = extracted.totalValue || '';
     document.getElementById('extObservations').value = extracted.observations || '';
     document.getElementById('extDeliveryTime').value = extracted.deliveryTime || '';
-    document.getElementById('extNeighborhood').value = extracted.neighborhood || '';
+    document.getElementById('extNeighborhood').value = (extracted.neighborhood || '').toUpperCase();
 
     if (extracted.locationUrl) {
         document.getElementById('extLocation').value = extracted.locationUrl;
@@ -2064,6 +2072,8 @@ async function addFinanceEntry() {
         investedEl.value = '';
         returnedEl.value = '';
         document.getElementById('financeProfit').value = '';
+        // Re-trigger auto-fill para a data atual com os pedidos mais recentes
+        autoFillReturned('financeDate', 'financeReturned');
         
         showToast('✅ Registro salvo e relatório atualizado!', 'success');
     } catch (err) {
@@ -2089,7 +2099,7 @@ function autoFillReturned(dateInputId, returnedInputId) {
         }
     });
     if (total > 0) {
-        returnedInput.value = total.toFixed(2).replace('.', ',');
+        returnedInput.value = total.toFixed(2);
     } else {
         returnedInput.value = '';
     }
