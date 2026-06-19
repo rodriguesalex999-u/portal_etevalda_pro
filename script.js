@@ -33,6 +33,20 @@ const DELIVERERS = {
     '556699258038': { name: 'Sr Vitória', phone: '556699258038' },
 };
 
+// Palavras que NUNCA devem ser consideradas como nome de cliente
+const NON_NAME_WORDS = new Set([
+    'especificado', 'informado', 'combinado', 'pendente', 'aguardando',
+    'pedido', 'cliente', 'entregador', 'entregadora', 'atendente',
+    'cobrar', 'receber', 'pagamento', 'entrega', 'entregue',
+    'cancelado', 'andamento', 'rota', 'endereço', 'endereco',
+    'localização', 'localizacao', 'observação', 'observacao',
+    'produto', 'produtos', 'valor', 'valores', 'total', 'subtotal',
+    'telefone', 'whatsapp', 'contato', 'nome', 'bairro', 'cidade',
+    'horário', 'horario', 'agendar', 'reagendar', 'confirmado',
+    'atrasado', 'adiar', 'hoje', 'amanhã', 'amanha', 'depois',
+    'agora', 'tarde', 'noite', 'manhã', 'manha',
+]);
+
 let orders = [], pendingPurchases = [], financeEntries = [], receivables = [];
 let reportUnlocked = false, currentEditId = null, currentDeleteId = null;
 let currentFinanceEditId = null;
@@ -1162,6 +1176,40 @@ async function handleExtract() {
 }
 
 function extractEtevaldaOrder(conversation) {
+    // Se o usuário copiou a página inteira (Ctrl+A), limpamos os cabeçalhos e rodapés da UI do sistema
+    if (conversation) {
+        // 1. Limpa o cabeçalho/barra lateral (mantém apenas o que está após a caixa de texto)
+        const headerMarker = "Cole a conversa com o cliente";
+        const headerIndex = conversation.indexOf(headerMarker);
+        if (headerIndex !== -1) {
+            conversation = conversation.substring(headerIndex + headerMarker.length);
+        }
+
+        // 2. Remove linhas isoladas de botões/ações da UI (ex: "Editar", "Excluir")
+        conversation = conversation.split('\n').map(l => l.trim()).filter(l => {
+            if (/^(Editar|Excluir)$/i.test(l)) return false;
+            if (/^[🗑️✏️✅❌🔔💰📦]\s*(Editar|Excluir|Pendente|Entregue|Cancelado)?$/i.test(l.trim())) return false;
+            return true;
+        }).join('\n');
+
+        // 3. Remove blocos de UI a partir de marcadores (seguro: não aparecem em conversas reais)
+        const uiBlockMarkers = [
+            /Extrair Dados com IA/i,
+            /Dados Extraídos \(EDITÁVEIS\)/i,
+            /Clientes a Receber/i,
+            /Pedidos Ativos/i,
+            /Histórico de Entregas/i,
+            /Selecione um entregador/i,
+            /ENVIAR PARA ENTREGADOR/i,
+        ];
+        for (const marker of uiBlockMarkers) {
+            const index = conversation.search(marker);
+            if (index !== -1) {
+                conversation = conversation.substring(0, index);
+            }
+        }
+    }
+
     const lines = conversation.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     let result = {
         clientName: '',
@@ -1173,6 +1221,20 @@ function extractEtevaldaOrder(conversation) {
         locationUrl: '',
         deliveryTime: '',
         neighborhood: ''
+    };
+
+    // Função auxiliar que verifica se uma palavra NÃO é nome próprio
+    const isNonName = (candidate) => {
+        if (!candidate || candidate.length < 2) return true;
+        const lower = candidate.toLowerCase().trim();
+        // Se o texto exato está na blacklist
+        if (NON_NAME_WORDS.has(lower)) return true;
+        // Divide em palavras e verifica se ALGUMA está na blacklist
+        const words = lower.split(/\s+/).filter(w => w.length > 1);
+        for (const word of words) {
+            if (NON_NAME_WORDS.has(word)) return true;
+        }
+        return false;
     };
 
     // ========== 1. EXTRAIR LINK DE LOCALIZAÇÃO (Plano A, B e C) ==========
@@ -1255,10 +1317,45 @@ function extractEtevaldaOrder(conversation) {
     }
 
     // ========== 3. EXTRAIR NOME DO CLIENTE ==========
+
+    // Padrão 0 (PRIORIDADE MÁXIMA): formato de relatório estruturado
+    // Ex: **Nome do Cliente**\nGustavo Araujo
+    // Cobre também: "Nome do Cliente\nGustavo Araujo" sem asteriscos
+    const structuredNameMatch = conversation.match(/\*{0,2}Nome\s+do\s+Cliente\*{0,2}\s*\n+\s*([A-ZÁ-ÚÃÕÇa-zá-úãõç][A-ZÁ-ÚÃÕÇa-zá-úãõç\s]{1,40})/i);
+    if (structuredNameMatch && structuredNameMatch[1]) {
+        const candidate = structuredNameMatch[1].trim();
+        // Garante que não é uma linha vazia ou texto de instrução
+        if (candidate.length > 2 && !isNonName(candidate) && !/\*|não forneceu|não informad|não consta|indefinido/i.test(candidate)) {
+            result.clientName = candidate;
+        }
+    }
+
     // Padrão 1: ~NOME (Manychat / WhatsApp direto com ~)
-    const tildeMatch = conversation.match(/~([A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç]+)/);
-    if (tildeMatch && tildeMatch[1]) {
-        result.clientName = tildeMatch[1].trim();
+    if (!result.clientName) {
+        const tildeMatch = conversation.match(/~([A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç]+(?:\s+[A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç]+)*)/);
+        if (tildeMatch && tildeMatch[1]) {
+            result.clientName = tildeMatch[1].trim();
+        }
+    }
+    
+    // Padrão 1.5: Linha imediatamente seguinte a um número de telefone do cliente (WhatsApp Web / Ctrl+A)
+    if (!result.clientName) {
+        for (let i = 0; i < lines.length - 1; i++) {
+            const line = lines[i];
+            if (line.match(/^\+?55\s*\(?\d{2}\)?\s*\d{4,5}-?\d{4}$/)) {
+                if (filterClientPhone(line)) {
+                    const nextLine = lines[i + 1];
+                    const nameMatch = nextLine.match(/^~?([A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç]+(?:\s+[A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç]+){0,3})$/);
+                    if (nameMatch && nameMatch[1]) {
+                        const candidate = nameMatch[1].trim();
+                        if (!isNonName(candidate)) {
+                            result.clientName = candidate;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
     
     // Padrão 2: Primeiro Nome: (Manychat)
@@ -1273,7 +1370,8 @@ function extractEtevaldaOrder(conversation) {
         const agentGreeting = conversation.match(/(?:Olá|Oi|Bom dia|Boa tarde|Boa noite)\s+([A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+)(?:,|!|\s|$)/i);
         if (agentGreeting && agentGreeting[1]) {
             const name = agentGreeting[1].trim();
-            if (name.length > 2 && name.length < 20 && !name.match(/^(vc|você|amigo|amiga|querido|querida|tudo|bem|sim|não)$/i)) {
+            const isCapitalized = /^[A-ZÁ-ÚÃÕÇ]/.test(name);
+            if (isCapitalized && name.length > 2 && name.length < 20 && !isNonName(name)) {
                 result.clientName = name;
             }
         }
@@ -1282,7 +1380,8 @@ function extractEtevaldaOrder(conversation) {
             const nameCallMatch = conversation.match(/([A-ZÁ-ÚÃÕÇ][a-zá-úãõç]{2,15}),\s*(?:tudo bem|tudo|vc|você|me|pode|vamos|então|viu|sabe|vou|já|agora|só|estou|está)/i);
             if (nameCallMatch && nameCallMatch[1]) {
                 const name = nameCallMatch[1].trim();
-                if (name.length > 2 && name.length < 20) {
+                const isCapitalized = /^[A-ZÁ-ÚÃÕÇ]/.test(name);
+                if (isCapitalized && name.length > 2 && name.length < 20 && !isNonName(name)) {
                     result.clientName = name;
                 }
             }
@@ -1295,9 +1394,9 @@ function extractEtevaldaOrder(conversation) {
             const line = lines[i];
             // Evita linhas com telefone, horários, etc.
             if (line.match(/^\+55|\d{10,}|horas?|hrs?|hoje|\[.*?\]/i)) continue;
-            // Nome com 2-4 palavras, letras maiúsculas no início
-            const nameMatch = line.match(/^([A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+(?:\s+[A-ZÁ-ÚÃÕÇ][a-zá-úãõç]+){0,3})$/);
-            if (nameMatch && nameMatch[1] && nameMatch[1].length > 2 && nameMatch[1].length < 40) {
+            // Nome com 1-4 palavras (aceita CAPS LOCK e normal)
+            const nameMatch = line.match(/^([A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç]+(?:\s+[A-ZÁ-ÚÃÕÇ][A-ZÁ-ÚÃÕÇa-zá-úãõç]+){0,3})$/);
+            if (nameMatch && nameMatch[1] && nameMatch[1].length > 2 && nameMatch[1].length < 40 && !isNonName(nameMatch[1])) {
                 result.clientName = nameMatch[1];
                 break;
             }
@@ -1305,24 +1404,34 @@ function extractEtevaldaOrder(conversation) {
     }
 
     // ========== 4. EXTRAIR PEDIDO/PRODUTOS ==========
-    // Procura pelo bloco do pedido (começa com "Pedido" ou "📦 Pedido")
-    let pedidoBlock = '';
+    // Procura pelo bloco do pedido
+    // Início: "Pedido", "**Pedido**", "📦 Pedido", "👇 PEDIDO" (com ou sem asteriscos markdown)
     let inPedido = false;
     let pedidoLines = [];
     
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        if (/^(Pedido|📦\s*Pedido|👇\s*PEDIDO)/i.test(line)) {
+        // Detecta início do bloco — aceita asteriscos markdown e typo "edido" sem P
+        if (/^\*{0,2}(📦\s*)?(Pedido|PEDIDO|edido|EDIDO)\*{0,2}$/i.test(line) ||
+            /^\*{0,2}(📦\s*)?(Pedido|edido)\s+\*/i.test(line)) {
             inPedido = true;
             pedidoLines = [];
             continue;
         }
         if (inPedido) {
-            if ((line.includes('Total') && line.includes(':')) || /✅/.test(line)) {
-                pedidoLines.push(line);
-                break;
-            }
+            // Termina o bloco ao encontrar: linha de Total com ✅, ou indicadores de pagamento/fim
+            const isEndLine =
+                (/Total\s*.*:.*✅/i.test(line)) ||
+                (/^PAGAMENTO\s+(NO\s+MOMENTO|EM\s+DINHEIRO|VIA\s+PIX|CARTÃO)/i.test(line)) ||
+                (/^Forma\s+de\s+pagamento/i.test(line)) ||
+                (/^---+$/.test(line) && pedidoLines.some(l => /Total/i.test(l)));
+
             pedidoLines.push(line);
+
+            if (isEndLine) break;
+
+            // Também encerra se a linha tem "Total :" seguido de valor (sem ✅ ainda)
+            if (/Total\s*:\s*[\d.,]+/.test(line)) break;
         }
     }
     
