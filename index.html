@@ -96,6 +96,19 @@
             <div class="form-group"><label>Forma de Pagamento</label><input type="text" id="extPayment"></div>
             <div class="form-group"><label>Valor Total</label><input type="text" id="extValue" placeholder="Ex: R$ 250,00"></div>
           </div>
+          <!-- 👇 MODELOS QUE O CLIENTE GOSTOU -->
+          <div class="form-group" style="margin-top:0.75rem;padding:0.75rem;background:#fdf4ff;border-radius:var(--radius);border:1px solid #d946ef;">
+            <label style="display:flex;align-items:center;gap:0.4rem;font-weight:600;color:#7c3aed;margin-bottom:0.25rem;">
+              <i class="fas fa-heart" style="color:#e11d48;"></i> Modelos que o Cliente Gostou
+            </label>
+            <small style="color:#6b21a8;font-size:0.8rem;display:block;margin-bottom:0.5rem;">Cole o link do modelo. Ao preencher, um novo campo aparece automaticamente.</small>
+            <div id="modelLinksContainer">
+              <div class="model-link-row" style="display:flex;gap:0.4rem;margin-bottom:0.4rem;align-items:center;">
+                <input type="url" class="model-link-input" placeholder="🔗 Cole aqui o link do modelo 1..." style="flex:1;" oninput="handleModelLinkInput(this)">
+              </div>
+            </div>
+          </div>
+
           <div class="form-group" style="margin-top:0.5rem;"><label>Produto(s) *</label><textarea id="extProducts" style="min-height:120px;"></textarea></div>
           <div class="form-group" style="margin-top:0.5rem;">
             <label>🏠 Bairro</label>

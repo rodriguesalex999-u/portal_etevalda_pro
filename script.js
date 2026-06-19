@@ -126,6 +126,25 @@ async function loadDeliveryPage(orderId) {
             </div>`
             : '';
 
+        // Bloco visual dos modelos que o cliente gostou
+        let modelLinksHtml = '';
+        if (order.model_links && order.model_links.length > 0) {
+            const linksHtml = order.model_links.map((link, i) => {
+                const label = order.model_links.length === 1 ? '' : `<div style="font-size:0.8rem;font-weight:700;color:#7c3aed;margin-bottom:0.2rem;">👉 Opção ${i + 1}</div>`;
+                return `${label}<a href="${escapeHtml(link)}" target="_blank" style="word-break:break-all;color:#7c3aed;font-size:0.85rem;">${escapeHtml(link)}</a>`;
+            }).join('<div style="margin:0.4rem 0;border-top:1px dashed #d8b4fe;"></div>');
+
+            const title = order.model_links.length === 1
+                ? '👇 Modelo que o Cliente Gostou'
+                : '👇 Modelos que o Cliente Gostou';
+
+            modelLinksHtml = `
+                <div class="delivery-info" style="background:#fdf4ff;border:1px solid #d946ef;border-radius:8px;padding:0.75rem;margin-top:0.5rem;">
+                    <div class="delivery-label" style="color:#7c3aed;font-weight:700;margin-bottom:0.5rem;"><i class="fas fa-heart" style="color:#e11d48;"></i> ${title}</div>
+                    <div style="display:flex;flex-direction:column;gap:0.4rem;">${linksHtml}</div>
+                </div>`;
+        }
+
         content.innerHTML = `
             <div class="delivery-card">
                 <div class="delivery-header">
@@ -142,9 +161,10 @@ async function loadDeliveryPage(orderId) {
                 </div>
                 ${order.total_value ? `<div class="delivery-info"><div class="delivery-label"><i class="fas fa-dollar-sign"></i> Valor Total</div><div class="delivery-value total">${order.total_value}</div></div>` : ''}
                 ${observationsHtml}
+                ${modelLinksHtml}
                 <div class="delivery-actions">
                     ${order.location_url ? `<a href="${order.location_url}" target="_blank" class="delivery-btn map"><i class="fas fa-map-marker-alt"></i> VER NO MAPA</a>` : ''}
-                    <button class="delivery-btn" onclick="openClientWhatsApp('${order.client_phone}', '${escapeJs(order.client_name)}', '${escapeJs(order.products || '')}', '${escapeJs(order.observations || '')}', '${escapeJs(order.entregador_responsavel || '')}')"><i class="fab fa-whatsapp"></i> FALAR COM CLIENTE</button>
+                    <button class="delivery-btn" onclick="openClientWhatsApp('${order.client_phone}', '${escapeJs(order.client_name)}', '${escapeJs(order.products || '')}', '${escapeJs(order.observations || '')}', '${escapeJs(order.entregador_responsavel || '')}', ${JSON.stringify(order.model_links || [])})"><i class="fab fa-whatsapp"></i> FALAR COM CLIENTE</button>
                 </div>
             </div>
         `;
@@ -155,7 +175,7 @@ async function loadDeliveryPage(orderId) {
 }
 
 // ✅ WhatsApp com observações - FORMATADO CORRETAMENTE
-function openClientWhatsApp(clientPhone, clientName, products, observations, delivererName) {
+function openClientWhatsApp(clientPhone, clientName, products, observations, delivererName, modelLinks) {
     if (!delivererName || delivererName === '') {
         for (const [phone, data] of Object.entries(DELIVERERS)) {
             if (clientPhone.includes(phone.replace('55', '')) || phone.includes(clientPhone.replace('55', ''))) {
@@ -172,6 +192,10 @@ function openClientWhatsApp(clientPhone, clientName, products, observations, del
 
     if (observations && observations.trim() !== '') {
         message += `📝 Observações importantes:\n${observations}\n\n`;
+    }
+
+    if (modelLinks && modelLinks.length > 0) {
+        message += buildModelLinksText(modelLinks) + '\n';
     }
 
     message += `Já estou com sua localização e saindo para entrega! 🚀`;
@@ -1625,6 +1649,78 @@ function updateSendButton() {
 
 document.addEventListener('change', (e) => { if (e.target.id === 'selectedDeliverer') updateSendButton(); });
 
+// ==================== LINKS DINÂMICOS: MODELOS QUE O CLIENTE GOSTOU ====================
+function handleModelLinkInput(input) {
+    const container = document.getElementById('modelLinksContainer');
+    if (!container) return;
+    const rows = container.querySelectorAll('.model-link-row');
+    const currentIndex = Array.from(rows).indexOf(input.closest('.model-link-row'));
+    const isLast = currentIndex === rows.length - 1;
+    const hasValue = input.value.trim() !== '';
+
+    // Se o último campo foi preenchido, adiciona um novo campo automaticamente
+    if (isLast && hasValue) {
+        const nextNumber = rows.length + 1;
+        const newRow = document.createElement('div');
+        newRow.className = 'model-link-row';
+        newRow.style.cssText = 'display:flex;gap:0.4rem;margin-bottom:0.4rem;align-items:center;';
+        newRow.innerHTML = `
+            <input type="url" class="model-link-input" placeholder="🔗 Cole aqui o link do modelo ${nextNumber}..." style="flex:1;" oninput="handleModelLinkInput(this)">
+            <button type="button" onclick="removeModelLinkRow(this)" style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;padding:0.35rem 0.6rem;cursor:pointer;font-size:0.9rem;flex-shrink:0;" title="Remover">✕</button>
+        `;
+        container.appendChild(newRow);
+        newRow.querySelector('input').focus();
+    }
+
+    renumberModelLinkPlaceholders();
+}
+
+function removeModelLinkRow(btn) {
+    const row = btn.closest('.model-link-row');
+    if (!row) return;
+    row.remove();
+    renumberModelLinkPlaceholders();
+}
+
+function renumberModelLinkPlaceholders() {
+    const container = document.getElementById('modelLinksContainer');
+    if (!container) return;
+    const inputs = container.querySelectorAll('.model-link-input');
+    inputs.forEach((input, i) => {
+        input.placeholder = `🔗 Cole aqui o link do modelo ${i + 1}...`;
+    });
+}
+
+function getModelLinks() {
+    const container = document.getElementById('modelLinksContainer');
+    if (!container) return [];
+    return Array.from(container.querySelectorAll('.model-link-input'))
+        .map(i => i.value.trim())
+        .filter(v => v !== '');
+}
+
+function resetModelLinks() {
+    const container = document.getElementById('modelLinksContainer');
+    if (!container) return;
+    container.innerHTML = `
+        <div class="model-link-row" style="display:flex;gap:0.4rem;margin-bottom:0.4rem;align-items:center;">
+            <input type="url" class="model-link-input" placeholder="🔗 Cole aqui o link do modelo 1..." style="flex:1;" oninput="handleModelLinkInput(this)">
+        </div>
+    `;
+}
+
+function buildModelLinksText(links) {
+    if (!links || links.length === 0) return '';
+    if (links.length === 1) {
+        return `\n👇 Modelo que o Cliente Gostou\n${links[0]}\n`;
+    }
+    let text = `\n👇 Modelos que o Cliente Gostou\n`;
+    links.forEach((link, i) => {
+        text += `\n👉 Opção ${i + 1}\n${link}\n`;
+    });
+    return text;
+}
+
 async function handleGenerateLink() {
     const selectedDeliverer = document.getElementById('selectedDeliverer').value;
     if (!selectedDeliverer) { showToast('⚠️ Selecione um entregador', 'warning'); return; }
@@ -1639,6 +1735,9 @@ async function handleGenerateLink() {
 
     if (!clientPhone || !products) { showToast('⚠️ Preencha Telefone e Produtos', 'warning'); return; }
 
+    // Captura os links dos modelos
+    const modelLinks = getModelLinks();
+
     try {
         // Salva o pedido no banco (para manter o histórico)
         const novoPedido = {
@@ -1649,6 +1748,7 @@ async function handleGenerateLink() {
             total_value: totalValue,
             observations: observations,
             location_url: locationUrl,
+            model_links: modelLinks,
             entregador_responsavel: DELIVERERS[selectedDeliverer]?.name || '',
             status: 'pending',
             created_at: new Date().toISOString()
@@ -1708,6 +1808,10 @@ async function handleGenerateLink() {
         if (locationUrl && locationUrl.trim() !== '') {
             message += `📍 Localização para entrega:\n${locationUrl}\n\n`;
         }
+
+        if (modelLinks.length > 0) {
+            message += buildModelLinksText(modelLinks) + '\n';
+        }
         
         message += `Já estou com sua localização e saindo para entrega! 🚀`;
         
@@ -1733,6 +1837,10 @@ async function handleGenerateLink() {
         
         textToCopy += `💰 VALOR DO PEDIDO: ${valorDisplay}\n⏰ HORÁRIO: ${horarioDisplay}\n\n📍 LOCALIZAÇÃO: \n${localDisplay}\n\n${directWhatsAppLink}`;
 
+        if (modelLinks.length > 0) {
+            textToCopy += `\n` + buildModelLinksText(modelLinks);
+        }
+
         document.getElementById('linkOutput').textContent = textToCopy;
         document.getElementById('generatedLinkSection').classList.remove('hidden');
 
@@ -1743,6 +1851,7 @@ async function handleGenerateLink() {
 
         document.getElementById('extractConversation').value = '';
         document.getElementById('extractedFields').classList.add('hidden');
+        resetModelLinks();
         showToast('✅ Link direto do WhatsApp gerado!', 'success');
         await loadData();
 
